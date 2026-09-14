@@ -130,33 +130,106 @@ class SensitiveDetector {
   }
 
   /**
-   * Layer 3: Face Detection on Screenshot Image / Canvas Element
+   * Layer 3: Multi-Scale Tiled Face Detection on Screen Context Image
    * @param {HTMLImageElement|HTMLCanvasElement} imageElement
    * @returns {Promise<Array<Object>>} List of face bounding boxes [x, y, width, height]
    */
   async detectFaces(imageElement) {
-    if (this.blazeFaceModel && imageElement) {
-      try {
-        const predictions = await this.blazeFaceModel.estimateFaces(imageElement, false);
-        return predictions.map(pred => {
-          const start = pred.topLeft;
-          const end = pred.bottomRight;
-          return {
-            bbox: [
-              Math.round(start[0]),
-              Math.round(start[1]),
-              Math.round(end[0] - start[0]),
-              Math.round(end[1] - start[1])
-            ],
-            type: 'face',
-            confidence: Math.round((pred.probability ? pred.probability[0] : 0.9) * 100) / 100
-          };
-        });
-      } catch (e) {
-        console.warn("[SensitiveDetector] Face detection error:", e);
+    if (!this.blazeFaceModel || !imageElement) return [];
+
+    try {
+      // 1. Primary pass on full resolution image
+      let rawPredictions = await this._predictCanvasOrImage(imageElement, 0, 0);
+
+      const width = imageElement.naturalWidth || imageElement.width || 0;
+      const height = imageElement.naturalHeight || imageElement.height || 0;
+
+      // 2. Multi-Scale Tiled Pass for full desktop screenshots where faces are tiny thumbnails
+      if (rawPredictions.length === 0 && width > 640 && typeof document !== 'undefined') {
+        const tiledPredictions = await this._runTiledFaceDetection(imageElement, width, height);
+        rawPredictions = rawPredictions.concat(tiledPredictions);
+      }
+
+      // 3. Deduplicate overlapping face bounding boxes across tiles
+      const deduplicated = this._deduplicateFaceBoxes(rawPredictions);
+
+      return deduplicated.map(pred => ({
+        bbox: pred.bbox,
+        type: 'face',
+        confidence: pred.confidence
+      }));
+    } catch (e) {
+      console.warn("[SensitiveDetector] Face detection error:", e);
+      return [];
+    }
+  }
+
+  async _predictCanvasOrImage(source, offsetX = 0, offsetY = 0) {
+    const predictions = await this.blazeFaceModel.estimateFaces(source, false);
+    return predictions.map(pred => {
+      const start = pred.topLeft;
+      const end = pred.bottomRight;
+      const w = Math.round(end[0] - start[0]);
+      const h = Math.round(end[1] - start[1]);
+      return {
+        bbox: [
+          Math.round(start[0] + offsetX),
+          Math.round(start[1] + offsetY),
+          w,
+          h
+        ],
+        confidence: Math.round((pred.probability ? pred.probability[0] : 0.85) * 100) / 100
+      };
+    });
+  }
+
+  async _runTiledFaceDetection(imageElement, origW, origH) {
+    const tiles = [];
+    const tileW = Math.ceil(origW * 0.55);
+    const tileH = Math.ceil(origH * 0.55);
+    const stepX = Math.floor(origW * 0.45);
+    const stepY = Math.floor(origH * 0.45);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = tileW;
+    canvas.height = tileH;
+    const ctx = canvas.getContext('2d');
+
+    for (let y = 0; y < origH; y += stepY) {
+      for (let x = 0; x < origW; x += stepX) {
+        ctx.clearRect(0, 0, tileW, tileH);
+        ctx.drawImage(imageElement, x, y, tileW, tileH, 0, 0, tileW, tileH);
+        const preds = await this._predictCanvasOrImage(canvas, x, y);
+        tiles.push(...preds);
       }
     }
-    return [];
+    return tiles;
+  }
+
+  _deduplicateFaceBoxes(boxes) {
+    if (boxes.length <= 1) return boxes;
+    boxes.sort((a, b) => b.confidence - a.confidence);
+    const result = [];
+    for (const b of boxes) {
+      const isOverlap = result.some(r => this._calculateIoU(b.bbox, r.bbox) > 0.3);
+      if (!isOverlap) result.push(b);
+    }
+    return result;
+  }
+
+  _calculateIoU(boxA, boxB) {
+    const [xA, yA, wA, hA] = boxA;
+    const [xB, yB, wB, hB] = boxB;
+    const x1 = Math.max(xA, xB);
+    const y1 = Math.max(yA, yB);
+    const x2 = Math.min(xA + wA, xB + wB);
+    const y2 = Math.min(yA + hA, yB + hB);
+    const interWidth = Math.max(0, x2 - x1);
+    const interHeight = Math.max(0, y2 - y1);
+    const interArea = interWidth * interHeight;
+    const areaA = wA * hA;
+    const areaB = wB * hB;
+    return interArea / (areaA + areaB - interArea + 1e-6);
   }
 }
 

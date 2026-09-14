@@ -409,6 +409,10 @@
       function renderSampleImage(sample, analysisResult = null) {
         const img = new Image();
         img.onload = () => {
+          if (img.naturalWidth && img.naturalHeight) {
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+          }
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
@@ -461,34 +465,49 @@
       }
 
       async function runAnalysis() {
-        currentSample = window.PERCEPTION_SAMPLE_DATA[sampleSelect.value];
+        if (sampleSelect.value === 'custom') {
+          if (!customUploadedBase64) {
+            alert("Please upload a custom screenshot image first!");
+            return;
+          }
+          currentSample = { screenshotBase64: customUploadedBase64, domTree: customDomTree };
+        } else {
+          currentSample = window.PERCEPTION_SAMPLE_DATA[sampleSelect.value];
+        }
+
         const selectedBackend = backendSelect.value;
         jsonOutput.textContent = `// Initializing Perception Engine with backend: [${selectedBackend.toUpperCase()}]...`;
 
-        const engine = await getEngineInstance(selectedBackend);
+        try {
+          const engine = await getEngineInstance(selectedBackend);
 
-        const startTime = performance.now();
-        const result = await engine.analyze(currentSample.screenshotBase64, currentSample.domTree);
-        const endTime = performance.now();
+          const startTime = performance.now();
+          const result = await engine.analyze(currentSample.screenshotBase64, currentSample.domTree);
+          const endTime = performance.now();
 
-        const latency = Math.round(endTime - startTime);
+          const latency = Math.round(endTime - startTime);
 
-        metricLatency.textContent = `${latency} ms`;
-        metricElements.textContent = result.elements.length;
-        
-        const sensitiveCount = result.elements.filter(e => e.sensitive).length;
-        metricSensitive.textContent = sensitiveCount;
-        metricBackend.textContent = (result.summary?.groundingBackend || selectedBackend).toUpperCase();
+          metricLatency.textContent = `${latency} ms`;
+          metricElements.textContent = result.elements.length;
+          
+          const sensitiveCount = result.elements.filter(e => e.sensitive).length;
+          metricSensitive.textContent = sensitiveCount;
+          metricBackend.textContent = (result.summary?.groundingBackend || selectedBackend).toUpperCase();
 
-        renderSampleImage(currentSample, result);
-        jsonOutput.textContent = JSON.stringify(result, null, 2);
+          renderSampleImage(currentSample, result);
+          jsonOutput.textContent = JSON.stringify(result, null, 2);
 
-        const isValidContract = Array.isArray(result.elements) && result.elements.every(e => e.id && e.type && Array.isArray(e.bbox) && typeof e.sensitive === 'boolean');
+          const isValidContract = Array.isArray(result.elements) && result.elements.every(e => e.id && e.type && Array.isArray(e.bbox) && typeof e.sensitive === 'boolean');
 
-        if (isValidContract) {
-          testLog.innerHTML = `<span style="color: #10b981; font-weight: 600;">✓ CONTRACT PASSED:</span> analyzeScreen() executed using <strong>${(result.summary?.groundingBackend || 'DOM').toUpperCase()}</strong> runtime with ${result.elements.length} elements (${sensitiveCount} sensitive redacted).`;
-        } else {
-          testLog.innerHTML = `<span style="color: #f43f5e; font-weight: 600;">✕ CONTRACT FAIL:</span> Schema did not match required contract specifications.`;
+          if (isValidContract) {
+            testLog.innerHTML = `<span style="color: #10b981; font-weight: 600;">✓ CONTRACT PASSED:</span> analyzeScreen() executed using <strong>${(result.summary?.groundingBackend || 'DOM').toUpperCase()}</strong> runtime with ${result.elements.length} elements (${sensitiveCount} sensitive redacted).`;
+          } else {
+            testLog.innerHTML = `<span style="color: #f43f5e; font-weight: 600;">✕ CONTRACT FAIL:</span> Schema did not match required contract specifications.`;
+          }
+        } catch (err) {
+          console.error("Analysis execution error:", err);
+          jsonOutput.textContent = `// ERROR DURING EXECUTION:\n${err.message}\n\n${err.stack}`;
+          testLog.innerHTML = `<span style="color: #f43f5e; font-weight: 600;">✕ ERROR:</span> ${err.message}`;
         }
       }
 
