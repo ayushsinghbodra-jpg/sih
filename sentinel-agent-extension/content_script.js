@@ -204,7 +204,8 @@ async function runPipeline(taskGoal) {
     }
 
     // o. Report execution status
-    sendStatus("executed", "Action executed");
+    const completionLabel = actionObj.action === "none" ? "Analysis complete" : "Action executed";
+    sendStatus("executed", completionLabel);
     console.log("[SentinelAgent Pipeline] === PIPELINE RUN COMPLETED ===");
 
   } catch (error) {

@@ -1,56 +1,70 @@
 /* ==========================================================================
-   SentinelAgent — Professional Dark UI Theme
-   Designed for: ISRO SIH Privacy-Preserving Agentic Extension
-   Zero dependencies | Pure CSS | < 4KB | High Performance
+   SentinelAgent Popup - ChatGPT-Inspired Light Blue & White Theme
    ========================================================================== */
 
 :root {
-  --bg-base: #0b0914;
-  --bg-surface: #131022;
-  --bg-elevated: #1a162e;
-  --bg-input: #161226;
-  --border-subtle: #252040;
-  --border-focus: #5b8def;
+  /* Light Theme Palette */
+  --bg-app: #f8fafc;
+  --bg-gradient-start: #f0f7ff;
+  --bg-gradient-mid: #e0f2fe;
+  --bg-gradient-end: #f8fafc;
   
-  --text-main: #f3f2fa;
-  --text-secondary: #9e99ba;
-  --text-muted: #6c668a;
+  --bg-surface: #ffffff;
+  --bg-surface-elevated: #ffffff;
+  --bg-subtle: #f1f5f9;
+  --bg-subtle-hover: #e2e8f0;
+  
+  --text-main: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  
+  --border-light: #e2e8f0;
+  --border-subtle: #cbd5e1;
+  --border-focus: #38bdf8;
+  
+  --blue-primary: #0284c7;
+  --blue-soft: #e0f2fe;
+  --blue-border: #bae6fd;
+  --blue-glow: rgba(2, 132, 199, 0.15);
+  
+  --emerald-soft: #ecfdf5;
+  --emerald-text: #059669;
+  --emerald-border: #a7f3d0;
+  
+  --amber-soft: #fffbeb;
+  --amber-text: #d97706;
+  --amber-border: #fde68a;
+  
+  --rose-soft: #fff1f2;
+  --rose-text: #e11d48;
+  --rose-border: #fecdd3;
 
-  /* Accent Colors */
-  --blue: #4f8cff;
-  --blue-glow: rgba(79, 140, 255, 0.18);
-  --purple: #9d72ff;
-  --purple-glow: rgba(157, 114, 255, 0.16);
-  --orange: #ff9f43;
-  --orange-bg: rgba(255, 159, 67, 0.08);
-  --orange-border: rgba(255, 159, 67, 0.35);
-  --green: #2ed573;
-  --green-bg: rgba(46, 213, 115, 0.08);
-  --green-border: rgba(46, 213, 115, 0.35);
-  --red: #ff5252;
-  --red-bg: rgba(255, 82, 82, 0.08);
-
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+  
   --radius-sm: 6px;
   --radius-md: 10px;
-  --radius-pill: 9999px;
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.25);
-  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+  
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-* {
+*, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
 html, body {
-  width: 380px;
+  width: 360px;
   height: 520px;
-  background-color: var(--bg-base);
+  background-color: var(--bg-app);
   color: var(--text-main);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", Helvetica, Arial, sans-serif;
   font-size: 13px;
-  line-height: 1.4;
+  line-height: 1.5;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -60,66 +74,73 @@ html, body {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: radial-gradient(circle at top right, rgba(157, 114, 255, 0.06), transparent 60%),
-              radial-gradient(circle at bottom left, rgba(79, 140, 255, 0.04), transparent 50%),
-              var(--bg-base);
+  background: 
+    radial-gradient(circle at 10% 10%, rgba(224, 242, 254, 0.8), transparent 45%),
+    radial-gradient(circle at 90% 80%, rgba(219, 234, 254, 0.6), transparent 50%),
+    linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
 }
 
 /* ==========================================================================
-   Header Section
+   Header Section (ChatGPT Minimalist Clean Style)
    ========================================================================== */
 
 .app__header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 13px 16px;
-  background-color: rgba(19, 16, 34, 0.85);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--border-subtle);
+  justify-content: space-between;
+  padding: 12px 16px;
+  background-color: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-light);
   flex-shrink: 0;
   z-index: 10;
+}
+
+.app__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .app__mark {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  background: linear-gradient(135deg, rgba(79, 140, 255, 0.15), rgba(157, 114, 255, 0.25));
-  border: 1px solid rgba(157, 114, 255, 0.35);
-  border-radius: var(--radius-sm);
-  color: #79a8ff;
-  box-shadow: 0 0 12px var(--blue-glow);
+  width: 28px;
+  height: 28px;
+  background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+  border: 1px solid var(--blue-border);
+  border-radius: var(--radius-md);
+  color: var(--blue-primary);
+  box-shadow: var(--shadow-sm);
   flex-shrink: 0;
 }
 
 .app__title {
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  min-width: 0;
 }
 
 .app__name {
   font-size: 13.5px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  background: linear-gradient(90deg, #ffffff 40%, #c4b5fd 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  font-weight: 600;
+  color: var(--text-main);
+  letter-spacing: -0.2px;
 }
 
 .app__status {
-  font-size: 11px;
-  color: var(--text-muted);
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  font-size: 10.5px;
   font-weight: 500;
-  text-transform: capitalize;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background-color: var(--bg-subtle);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-light);
+  transition: all var(--transition-fast);
 }
 
 .app__status::before {
@@ -127,37 +148,39 @@ html, body {
   display: inline-block;
   width: 6px;
   height: 6px;
-  border-radius: var(--radius-pill);
+  border-radius: 50%;
   background-color: var(--text-muted);
-  transition: background-color var(--transition-fast);
 }
 
 .app__status[data-state="running"] {
-  color: var(--blue);
+  background-color: var(--blue-soft);
+  color: var(--blue-primary);
+  border-color: var(--blue-border);
 }
 
 .app__status[data-state="running"]::before {
-  background-color: var(--blue);
-  box-shadow: 0 0 8px var(--blue);
+  background-color: var(--blue-primary);
   animation: pulse-dot 1.2s infinite ease-in-out;
 }
 
 .app__status[data-state="done"] {
-  color: var(--green);
+  background-color: var(--emerald-soft);
+  color: var(--emerald-text);
+  border-color: var(--emerald-border);
 }
 
 .app__status[data-state="done"]::before {
-  background-color: var(--green);
-  box-shadow: 0 0 6px var(--green);
+  background-color: var(--emerald-text);
 }
 
 .app__status[data-state="error"] {
-  color: var(--red);
+  background-color: var(--rose-soft);
+  color: var(--rose-text);
+  border-color: var(--rose-border);
 }
 
 .app__status[data-state="error"]::before {
-  background-color: var(--red);
-  box-shadow: 0 0 6px var(--red);
+  background-color: var(--rose-text);
 }
 
 @keyframes pulse-dot {
@@ -166,71 +189,86 @@ html, body {
 }
 
 /* ==========================================================================
-   Chat / Log Area
+   Chat / Log Feed
    ========================================================================== */
 
 .log {
   flex: 1;
   overflow-y: auto;
-  padding: 14px 14px;
+  padding: 14px 14px 10px 14px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  scroll-behavior: smooth;
+  gap: 10px;
 }
 
-/* Custom Slim Scrollbar */
 .log::-webkit-scrollbar {
   width: 5px;
 }
+
 .log::-webkit-scrollbar-track {
   background: transparent;
 }
+
 .log::-webkit-scrollbar-thumb {
-  background: var(--border-subtle);
-  border-radius: var(--radius-pill);
+  background-color: rgba(203, 213, 225, 0.6);
+  border-radius: var(--radius-full);
 }
+
 .log::-webkit-scrollbar-thumb:hover {
-  background: #39335a;
+  background-color: rgba(148, 163, 184, 0.8);
 }
 
 .log__empty {
-  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 32px 18px;
+  margin: auto 0;
+  background-color: rgba(255, 255, 255, 0.7);
+  border: 1px dashed var(--border-light);
+  border-radius: var(--radius-lg);
+  color: var(--text-secondary);
   font-size: 12px;
   line-height: 1.6;
-  padding: 16px 14px;
-  background-color: rgba(19, 16, 34, 0.5);
-  border: 1px dashed var(--border-subtle);
-  border-radius: var(--radius-md);
-  text-align: center;
-  margin: auto 0;
+  backdrop-filter: blur(4px);
 }
 
-/* Log Item Line */
+.log__empty-icon {
+  width: 36px;
+  height: 36px;
+  background: var(--blue-soft);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--blue-primary);
+  margin-bottom: 12px;
+}
+
+/* ==========================================================================
+   Message Items (ChatGPT-Style Bubbles & Cards)
+   ========================================================================== */
+
 .log-line {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 7px 10px;
+  gap: 9px;
+  padding: 7px 11px;
   background-color: var(--bg-surface);
-  border: 1px solid rgba(37, 32, 64, 0.6);
-  border-radius: var(--radius-sm);
-  font-family: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace;
-  font-size: 11.5px;
-  line-height: 1.45;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  color: var(--text-main);
   box-shadow: var(--shadow-sm);
   animation: slide-up 180ms cubic-bezier(0.16, 1, 0.3, 1);
   transition: all var(--transition-fast);
 }
 
-.log-line:hover {
-  border-color: rgba(79, 140, 255, 0.3);
-  background-color: var(--bg-elevated);
-}
-
 .log-line__icon {
   flex-shrink: 0;
-  width: 18px;
+  width: 16px;
   text-align: center;
   font-size: 12px;
   margin-top: 1px;
@@ -239,56 +277,95 @@ html, body {
 .log-line__detail {
   color: var(--text-main);
   word-break: break-word;
+  line-height: 1.45;
+  flex: 1;
 }
 
-/* Specific Stage Styles */
+/* User Task Message (ChatGPT Right-leaning User Bubble) */
 .log-line--task {
-  background: rgba(157, 114, 255, 0.08);
-  border-color: rgba(157, 114, 255, 0.25);
+  align-self: flex-end;
+  max-width: 90%;
+  background-color: #f1f5f9;
+  border-color: #cbd5e1;
+  border-radius: 14px 14px 2px 14px;
+  box-shadow: var(--shadow-sm);
+  padding: 9px 12px;
+}
+
+.log-line--task .log-line__icon {
+  display: none;
 }
 
 .log-line--task .log-line__detail {
-  color: #d1c4e9;
   font-weight: 500;
+  color: var(--text-main);
+}
+
+/* Assistant Thought / Summary (ChatGPT Assistant Message Card) */
+.log-line--thought,
+.log-line--server {
+  background: #ffffff;
+  border: 1px solid var(--blue-border);
+  border-left: 3.5px solid var(--blue-primary);
+  border-radius: var(--radius-md);
+  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.06);
+  padding: 11px 13px;
+  margin: 4px 0;
+}
+
+.log-line--thought .log-line__icon,
+.log-line--server .log-line__icon {
+  font-size: 14px;
+  color: var(--blue-primary);
+}
+
+.log-line--thought .log-line__detail,
+.log-line--server .log-line__detail {
+  color: #1e293b;
+  font-size: 12.5px;
+  line-height: 1.55;
+  font-weight: 400;
+}
+
+/* Pipeline Status Badges (Intermediate Steps) */
+.log-line--captured,
+.log-line--detected,
+.log-line--sent {
+  background-color: rgba(255, 255, 255, 0.7);
+  border-color: rgba(226, 232, 240, 0.8);
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  padding: 5px 9px;
+  border-radius: var(--radius-sm);
 }
 
 .log-line--redacted {
-  background-color: var(--orange-bg);
-  border-left: 3px solid var(--orange);
-  border-color: var(--orange-border);
-}
-
-.log-line--redacted .log-line__detail {
-  color: var(--orange);
-  font-weight: 600;
+  background-color: var(--amber-soft);
+  border: 1px solid var(--amber-border);
+  border-left: 3px solid var(--amber-text);
+  color: #92400e;
+  font-size: 11.5px;
+  padding: 6px 10px;
 }
 
 .log-line--executed {
-  background-color: var(--green-bg);
-  border-left: 3px solid var(--green);
-  border-color: var(--green-border);
-}
-
-.log-line--executed .log-line__detail {
-  color: var(--green);
-  font-weight: 600;
+  background-color: var(--emerald-soft);
+  border: 1px solid var(--emerald-border);
+  color: #065f46;
+  font-weight: 500;
+  padding: 6px 10px;
 }
 
 .log-line--error {
-  background-color: var(--red-bg);
-  border-left: 3px solid var(--red);
-  border-color: rgba(255, 82, 82, 0.4);
-}
-
-.log-line--error .log-line__detail {
-  color: var(--red);
-  font-weight: 600;
+  background-color: var(--rose-soft);
+  border: 1px solid var(--rose-border);
+  color: var(--rose-text);
 }
 
 @keyframes slide-up {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
@@ -297,84 +374,82 @@ html, body {
 }
 
 /* ==========================================================================
-   Composer / Input Bar
+   Composer Section (ChatGPT Rounded Floating Bar)
    ========================================================================== */
+
+.composer-wrapper {
+  padding: 10px 14px 12px 14px;
+  background-color: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border-light);
+  flex-shrink: 0;
+}
 
 .composer {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  border-top: 1px solid var(--border-subtle);
-  background-color: rgba(19, 16, 34, 0.95);
-  backdrop-filter: blur(10px);
-  flex-shrink: 0;
+  gap: 6px;
+  background-color: #ffffff;
+  border: 1.5px solid var(--border-light);
+  border-radius: var(--radius-full);
+  padding: 4px 6px 4px 14px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  transition: all var(--transition-fast);
+}
+
+.composer:focus-within {
+  border-color: var(--blue-primary);
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.12), 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .composer__input {
   flex: 1;
-  background-color: var(--bg-input);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
+  background: transparent;
+  border: none;
   color: var(--text-main);
+  font-family: inherit;
   font-size: 12.5px;
-  padding: 9px 12px;
   outline: none;
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .composer__input::placeholder {
   color: var(--text-muted);
 }
 
-.composer__input:focus {
-  border-color: var(--border-focus);
-  box-shadow: 0 0 0 2px var(--blue-glow);
-}
-
 .composer__send {
-  flex-shrink: 0;
-  width: 34px;
-  height: 34px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-subtle);
-  background: linear-gradient(135deg, #1b1730, #221d3d);
-  color: var(--blue);
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 50%;
+  background-color: #0f172a;
+  color: #ffffff;
   cursor: pointer;
+  flex-shrink: 0;
   transition: all var(--transition-fast);
 }
 
-.composer__send:hover {
-  background: linear-gradient(135deg, #252044, #312957);
-  border-color: var(--blue);
-  color: #79a8ff;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px var(--blue-glow);
+.composer__send:hover:not(:disabled) {
+  background-color: var(--blue-primary);
+  transform: scale(1.04);
 }
 
-.composer__send:active {
-  transform: translateY(0);
+.composer__send:active:not(:disabled) {
+  transform: scale(0.96);
 }
 
 .composer__send:disabled {
-  opacity: 0.35;
+  background-color: var(--border-light);
+  color: var(--text-muted);
   cursor: not-allowed;
-  transform: none;
 }
 
-.composer__send:focus-visible,
-.composer__input:focus-visible {
-  outline: 2px solid var(--blue);
-  outline-offset: 1px;
-}
-
-/* Accessibility: Reduced Motion */
-@media (prefers-reduced-motion: reduce) {
-  .log-line,
-  .app__status::before {
-    animation: none !important;
-  }
+.composer__footer-note {
+  text-align: center;
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 6px;
 }

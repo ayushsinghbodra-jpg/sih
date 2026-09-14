@@ -44,4 +44,6 @@ def act_endpoint(payload: ActRequest) -> Dict[str, Any]:
     except Exception as exc:
         # Fallback gracefully with HTTP 200 to protect live pipeline demo
         print(f"[Warning] /act execution encountered error: {exc}")
-        return FALLBACK_ACTION.copy()
+        err_action = FALLBACK_ACTION.copy()
+        err_action["thought"] = f"Reasoning error: {str(exc)}"
+        return err_action

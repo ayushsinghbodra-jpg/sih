@@ -26,6 +26,10 @@ def call_vlm(system_prompt: str, task_goal: str, elements: list, screenshot_base
         cleaned_b64 = screenshot_base64.strip()
         if "," in cleaned_b64:
             cleaned_b64 = cleaned_b64.split(",", 1)[1]
+        cleaned_b64 = "".join(cleaned_b64.split())
+        missing_padding = len(cleaned_b64) % 4
+        if missing_padding:
+            cleaned_b64 += "=" * (4 - missing_padding)
 
         image_bytes = base64.b64decode(cleaned_b64)
 

@@ -39,7 +39,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           "ngrok-skip-browser-warning": "true"
         },
         body: JSON.stringify(message.payload),
-        signal: AbortSignal.timeout(8000)
+        signal: AbortSignal.timeout(30000)
       })
         .then((res) => {
           if (!res.ok) throw new Error(`HTTP error ${res.status}`);

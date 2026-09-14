@@ -1,28 +1,22 @@
 /**
  * SentinelAgent popup.
  *
- * Renders pipeline status lines pushed by Person B's background.js /
- * content_script.js via chrome.runtime.sendMessage({stage, detail}),
- * and sends the task goal the user types back out for the pipeline to
- * pick up.
- *
- * Contract (see docs/contracts.md):
- *   chrome.runtime.sendMessage({stage: "<stage>", detail: "<text>"})
- *   stages: captured | detected | redacted | sent | server | executed
- *   (an unrecognized stage still renders, with a neutral icon, rather
- *   than being dropped or throwing)
+ * Renders pipeline status lines pushed by background.js / content_script.js
+ * via chrome.runtime.sendMessage({stage, detail}), and sends the task goal
+ * the user types back out for the pipeline to pick up.
  */
 
 (function () {
   "use strict";
 
   const STAGE_META = {
-    captured: { icon: "📷" },
-    detected: { icon: "🔍" },
+    captured: { icon: "📷", className: "log-line--captured" },
+    detected: { icon: "🔍", className: "log-line--detected" },
     redacted: { icon: "🔒", className: "log-line--redacted" },
-    sent: { icon: "📡" },
-    server: { icon: "🧠" },
-    executed: { icon: "✅", className: "log-line--executed" },
+    sent: { icon: "📡", className: "log-line--sent" },
+    server: { icon: "🧠", className: "log-line--thought" },
+    thought: { icon: "🧠", className: "log-line--thought" },
+    executed: { icon: "✨", className: "log-line--executed" },
     error: { icon: "⚠️", className: "log-line--error" },
   };
 
@@ -36,6 +30,7 @@
   const sendButtonEl = document.getElementById("sendButton");
 
   function setStatus(state, label) {
+    if (!statusEl) return;
     statusEl.dataset.state = state;
     statusEl.textContent = label;
   }
@@ -48,6 +43,7 @@
     const meta = STAGE_META[stage] || DEFAULT_META;
     const line = document.createElement("div");
     line.className = "log-line";
+
     if (variant) {
       line.classList.add(`log-line--${variant}`);
     } else if (meta.className) {
@@ -66,6 +62,7 @@
     line.appendChild(text);
     logEl.appendChild(line);
 
+    // Auto scroll to latest response
     logEl.scrollTop = logEl.scrollHeight;
   }
 
@@ -73,8 +70,6 @@
     console.log("[SentinelAgent Popup] Received pipeline message:", msg);
     if (!msg || typeof msg !== "object") return;
 
-    // Timing payloads (Stage 6) are handled separately from chat-log
-    // lines so they don't clutter the visible log.
     if (msg.type === "TIMINGS") {
       console.log("[SentinelAgent timings]", msg.timings);
       return;
@@ -85,28 +80,18 @@
     appendLogLine(msg.stage, msg.detail);
 
     if (msg.stage === "executed") {
-      setStatus("done", "run complete");
+      setStatus("done", "ready");
     } else if (msg.stage === "error") {
       setStatus("error", "server error");
     } else {
-      setStatus("running", "pipeline active");
+      setStatus("running", "reasoning…");
     }
   }
 
-  // chrome.runtime is undefined when popup.html is opened standalone in
-  // a plain browser tab (Stage 3.4's fallback testing method) — guard
-  // so that path doesn't throw.
   if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
     console.log("[SentinelAgent Popup] chrome.runtime.onMessage listener attached.");
     chrome.runtime.onMessage.addListener(handlePipelineMessage);
   } else {
-    console.warn(
-      "[SentinelAgent] chrome.runtime unavailable — running in standalone test mode. " +
-      "Fire test messages manually, e.g.:\n" +
-      "window.postMessage({stage:'captured', detail:'Captured screen'})"
-    );
-    // Standalone fallback so the popup is still testable in a plain tab
-    // without the extension loaded, per Stage 3.4.
     window.addEventListener("message", (event) => handlePipelineMessage(event.data));
   }
 
@@ -116,19 +101,15 @@
     if (!taskGoal) return;
 
     console.log("[SentinelAgent Popup] Submitting task goal:", taskGoal);
-    appendLogLine("task", `Task: "${taskGoal}"`, "task");
-    setStatus("running", "starting…");
+    appendLogLine("task", taskGoal, "task");
+    setStatus("running", "processing…");
 
     if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
-      console.log("[SentinelAgent Popup] Dispatching START_TASK to background worker:", { type: "START_TASK", task_goal: taskGoal });
       chrome.runtime.sendMessage({ type: "START_TASK", task_goal: taskGoal, taskGoal: taskGoal }, (response) => {
-        console.log("[SentinelAgent Popup] Background response acknowledging START_TASK:", response);
         if (chrome.runtime.lastError) {
           console.warn("[SentinelAgent Popup] Error dispatching to background:", chrome.runtime.lastError.message);
         }
       });
-    } else {
-      console.log("[SentinelAgent] (standalone) would send START_TASK:", taskGoal);
     }
 
     taskInputEl.value = "";
