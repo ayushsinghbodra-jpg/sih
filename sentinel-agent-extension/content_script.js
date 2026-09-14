@@ -204,23 +204,23 @@ async function runPipeline(taskGoal) {
     }
 
     // o. Report execution status
-    const completionLabel = actionObj.action === "none" ? "Analysis complete" : "Action executed";
+    const isNoneAction = actionObj.action === "none";
+    const completionLabel = isNoneAction ? "Analysis complete" : "Action executed";
     sendStatus("executed", completionLabel);
     console.log("[SentinelAgent Pipeline] === PIPELINE RUN COMPLETED ===");
+
+    // For informational queries or complete tasks, clear goal so it does not loop
+    if (isNoneAction) {
+      currentTaskGoal = null;
+    }
 
   } catch (error) {
     console.error("[SentinelAgent ContentScript] Error during pipeline execution:", error);
     sendStatus("error", error.message || "Pipeline execution failed");
+    currentTaskGoal = null;
   } finally {
     isProcessing = false;
-    if (pendingRerun && currentTaskGoal) {
-      pendingRerun = false;
-      setTimeout(() => {
-        if (!isProcessing && currentTaskGoal) {
-          runPipeline(currentTaskGoal);
-        }
-      }, 400);
-    }
+    pendingRerun = false;
   }
 }
 
@@ -258,16 +258,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 /**
  * 5. MutationObserver Setup (Debounced at 400ms)
- * Watches for DOM mutations after an action and re-triggers pipeline without user intervention.
+ * Watches for structural DOM additions/removals after an action and re-triggers pipeline.
  */
+let expectingMutation = false;
+
 const observer = new MutationObserver((mutations) => {
   if (!currentTaskGoal || isProcessing) {
     return;
   }
 
   // Filter out internal SentinelAgent UI modifications
-  const hasExternalMutations = mutations.some(m => !m.target?.id?.startsWith?.("sentinel-"));
-  if (!hasExternalMutations) return;
+  const hasStructuralMutations = mutations.some(m => 
+    m.type === "childList" && !m.target?.id?.startsWith?.("sentinel-")
+  );
+  if (!hasStructuralMutations) return;
 
   if (mutationDebounceTimer) {
     clearTimeout(mutationDebounceTimer);
@@ -275,13 +279,14 @@ const observer = new MutationObserver((mutations) => {
 
   mutationDebounceTimer = setTimeout(() => {
     if (!currentTaskGoal || isProcessing) return;
-    console.log("[SentinelAgent ContentScript] DOM mutation detected. Auto re-triggering pipeline for goal:", currentTaskGoal);
-    runPipeline(currentTaskGoal);
+    const taskToRerun = currentTaskGoal;
+    currentTaskGoal = null; // Single-shot rerun to prevent infinite mutation cycles
+    console.log("[SentinelAgent ContentScript] Structural DOM mutation detected. Re-analyzing for goal:", taskToRerun);
+    runPipeline(taskToRerun);
   }, 400);
 });
 
 observer.observe(document.body, {
   childList: true,
-  subtree: true,
-  attributes: true
+  subtree: true
 });

@@ -39,22 +39,30 @@ def call_vlm(system_prompt: str, task_goal: str, elements: list, screenshot_base
             "Process the task goal against the screenshot and interactable elements according to your instructions, and respond with JSON only."
         )
 
-        model = genai.GenerativeModel(
-            model_name="gemini-3.6-flash",
-            system_instruction=system_prompt,
-            generation_config={"temperature": 0.0, "response_mime_type": "application/json"}
-        )
+        candidate_models = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-3.6-flash"]
+        last_error = None
 
         image_part = {
             "mime_type": "image/jpeg",
             "data": image_bytes
         }
 
-        response = model.generate_content([image_part, user_content])
+        for model_name in candidate_models:
+            try:
+                model = genai.GenerativeModel(
+                    model_name=model_name,
+                    system_instruction=system_prompt,
+                    generation_config={"temperature": 0.0, "response_mime_type": "application/json"}
+                )
+                response = model.generate_content([image_part, user_content])
+                if response and response.text:
+                    return response.text
+            except Exception as e:
+                last_error = e
+                continue
 
-        if not response.text:
-            raise RuntimeError("Empty response received from Gemini VLM.")
-
-        return response.text
+        if last_error:
+            raise last_error
+        raise RuntimeError("Empty response received from Gemini VLM across candidate models.")
     except Exception as exc:
         raise RuntimeError(f"VLM call failed: {str(exc)}") from exc
