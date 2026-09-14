@@ -282,8 +282,85 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
 
+  if (message.type === "TOGGLE_SIDEBAR") {
+    toggleSentinelSidebar();
+    sendResponse({ status: "toggled" });
+    return false;
+  }
+
+  if (message.type === "CLOSE_SIDEBAR") {
+    toggleSentinelSidebar(false);
+    sendResponse({ status: "closed" });
+    return false;
+  }
+
   return false;
 });
+
+function toggleSentinelSidebar(forceOpen) {
+  let iframe = document.getElementById("sentinel-sidebar-iframe");
+  let launcher = document.getElementById("sentinel-floating-launcher");
+  const isOpen = iframe && iframe.style.transform === "translateX(0px)";
+  const shouldOpen = forceOpen !== undefined ? forceOpen : !isOpen;
+
+  if (!iframe) {
+    iframe = document.createElement("iframe");
+    iframe.id = "sentinel-sidebar-iframe";
+    iframe.src = chrome.runtime.getURL("popup.html");
+    iframe.style.cssText = "position:fixed;top:0;bottom:0;right:0;width:390px;max-width:90vw;height:100vh;height:100dvh;border:none;border-left:1px solid rgba(226,232,240,0.9);z-index:2147483647;box-shadow:-8px 0 32px rgba(0,0,0,0.18);background:#fafbfc;transform:translateX(100%);transition:transform 220ms cubic-bezier(0.16,1,0.3,1);";
+    document.body.appendChild(iframe);
+    // Trigger transition on next frame
+    requestAnimationFrame(() => {
+      iframe.style.transform = "translateX(0px)";
+    });
+  } else {
+    iframe.style.transform = shouldOpen ? "translateX(0px)" : "translateX(100%)";
+  }
+
+  if (launcher) {
+    launcher.style.display = shouldOpen ? "none" : "flex";
+  }
+}
+
+// Listen for iframe postMessages (e.g. close button inside sidebar)
+window.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SENTINEL_CLOSE_SIDEBAR") {
+    toggleSentinelSidebar(false);
+  }
+});
+
+// Inject floating edge tab on page load
+function injectFloatingLauncher() {
+  if (document.getElementById("sentinel-floating-launcher")) return;
+  const launcher = document.createElement("div");
+  launcher.id = "sentinel-floating-launcher";
+  launcher.title = "🛡️ Open SentinelAgent (Click or Ctrl+Shift+S)";
+  launcher.style.cssText = "position:fixed;top:50%;right:0;transform:translateY(-50%);z-index:2147483646;background:#0d9488;color:#ffffff;padding:10px 8px 10px 10px;border-top-left-radius:10px;border-bottom-left-radius:10px;cursor:pointer;box-shadow:-2px 2px 12px rgba(0,0,0,0.22);display:flex;align-items:center;justify-content:center;transition:all 150ms ease;user-select:none;";
+  launcher.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L4 5.5V11c0 5.25 3.4 9.9 8 11 4.6-1.1 8-5.75 8-11V5.5L12 2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 12.2l2 2 4-4.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  
+  launcher.addEventListener("mouseenter", () => {
+    launcher.style.transform = "translateY(-50%) translateX(-3px)";
+    launcher.style.backgroundColor = "#0f766e";
+  });
+  launcher.addEventListener("mouseleave", () => {
+    launcher.style.transform = "translateY(-50%)";
+    launcher.style.backgroundColor = "#0d9488";
+  });
+  launcher.addEventListener("click", () => {
+    toggleSentinelSidebar(true);
+  });
+  if (document.body) {
+    document.body.appendChild(launcher);
+  } else {
+    document.addEventListener("DOMContentLoaded", () => document.body?.appendChild(launcher));
+  }
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", injectFloatingLauncher);
+} else {
+  injectFloatingLauncher();
+}
 
 /**
  * 5. MutationObserver Setup (Debounced at 400ms)

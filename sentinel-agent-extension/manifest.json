@@ -2,16 +2,26 @@
   "manifest_version": 3,
   "name": "SentinelAgent",
   "version": "1.0.0",
-  "description": "AI-powered web security and automation assistant.",
+  "description": "Privacy-preserving AI vision agent for browser security and automation.",
   "permissions": [
     "activeTab",
     "scripting",
     "tabs",
-    "storage"
+    "storage",
+    "contextMenus"
   ],
   "host_permissions": [
     "<all_urls>"
   ],
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+S",
+        "mac": "Command+Shift+S"
+      },
+      "description": "Open SentinelAgent"
+    }
+  },
   "background": {
     "service_worker": "background.js",
     "type": "module"
@@ -40,6 +50,9 @@
   "web_accessible_resources": [
     {
       "resources": [
+        "popup.html",
+        "popup.css",
+        "popup.js",
         "perception/models/yolo11n.onnx",
         "libs/ort-wasm-simd-threaded.jsep.wasm",
         "libs/ort-wasm-simd-threaded.wasm"
@@ -50,7 +63,7 @@
     }
   ],
   "action": {
-    "default_popup": "popup.html",
+    "default_title": "Open SentinelAgent",
     "default_icon": {
       "16": "icon16.png",
       "48": "icon48.png",

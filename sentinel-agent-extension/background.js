@@ -3,7 +3,92 @@
 const USE_REAL_SERVER = true;
 const SERVER_URL = "https://mushiness-mantis-seducing.ngrok-free.dev/act";
 
-console.log("[SentinelAgent Background] Service worker initialized.");
+// Full-Height In-Page Assistant Launcher (Opera AI / Edge Copilot Style)
+async function launchAssistant(tab) {
+  if (!tab || !tab.id) return;
+  if (tab.url?.startsWith("chrome://") || tab.url?.startsWith("edge://") || tab.url?.startsWith("about:") || tab.url?.startsWith("chrome-extension://")) {
+    console.warn("[SentinelAgent Background] Cannot run assistant on browser internal page:", tab.url);
+    return;
+  }
+
+  try {
+    const res = await chrome.tabs.sendMessage(tab.id, { type: "TOGGLE_SIDEBAR" });
+    console.log("[SentinelAgent Background] In-page sidebar toggled:", res);
+  } catch (err) {
+    console.warn("[SentinelAgent Background] Content script not connected in tab " + tab.id + ". Injecting dynamically...", err);
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: [
+          "perception/redaction_policy.js",
+          "perception/sensitive_detector.js",
+          "perception/ui_grounding.js",
+          "perception/perception.js",
+          "redaction.js",
+          "payload_builder.js",
+          "action_executor.js",
+          "content_script.js"
+        ]
+      });
+      setTimeout(() => {
+        chrome.tabs.sendMessage(tab.id, { type: "TOGGLE_SIDEBAR" }).catch(console.error);
+      }, 120);
+    } catch (injErr) {
+      console.error("[SentinelAgent Background] Failed to inject scripts into tab:", injErr);
+    }
+  }
+}
+
+// Context menu option to open Side Panel from right-click
+function setupContextMenu() {
+  if (typeof chrome !== "undefined" && chrome.contextMenus) {
+    chrome.contextMenus.removeAll(() => {
+      chrome.contextMenus.create({
+        id: "open_sentinel_side_panel",
+        title: "🛡️ Open SentinelAgent Side Panel",
+        contexts: ["all"]
+      }, () => {
+        if (chrome.runtime.lastError) {
+          // ignore duplicate id warning
+        }
+      });
+    });
+  }
+}
+
+if (typeof chrome !== "undefined" && chrome.runtime?.onInstalled) {
+  chrome.runtime.onInstalled.addListener(() => {
+    setupContextMenu();
+  });
+}
+
+setupContextMenu();
+
+if (typeof chrome !== "undefined" && chrome.contextMenus?.onClicked) {
+  chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+    if (info.menuItemId === "open_sentinel_side_panel" && tab) {
+      launchAssistant(tab);
+    }
+  });
+}
+
+// Action Icon click handler
+if (typeof chrome !== "undefined" && chrome.action?.onClicked) {
+  chrome.action.onClicked.addListener(async (tab) => {
+    launchAssistant(tab);
+  });
+}
+
+// Keyboard shortcut handler
+if (typeof chrome !== "undefined" && chrome.commands?.onCommand) {
+  chrome.commands.onCommand.addListener(async (command) => {
+    if (command === "_execute_action" || command === "toggle_sentinel_panel") {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs && tabs[0]) launchAssistant(tabs[0]);
+      });
+    }
+  });
+}
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log("[SentinelAgent Background] Received message:", message, "from sender:", sender);

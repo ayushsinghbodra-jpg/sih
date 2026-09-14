@@ -480,6 +480,7 @@ class UIGroundingEngine {
     const nodes = Array.from(document.querySelectorAll(selectors));
 
     nodes.forEach((el, index) => {
+      if (el.closest && el.closest('#sentinel-sidebar-iframe, #sentinel-floating-launcher, [id^="sentinel-"]')) return;
       const rect = el.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return;
       const tagName = el.tagName.toUpperCase();

@@ -66,6 +66,28 @@
     }
   }
 
+  const closeSidebarBtn = document.getElementById("closeSidebarBtn");
+  if (closeSidebarBtn) {
+    closeSidebarBtn.addEventListener("click", () => {
+      // 1. PostMessage to parent frame (if inside in-page iframe)
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: "SENTINEL_CLOSE_SIDEBAR" }, "*");
+      }
+      // 2. Send message to tab / runtime
+      if (typeof chrome !== "undefined" && chrome.tabs && chrome.tabs.query) {
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+          if (tabs && tabs[0]?.id) {
+            chrome.tabs.sendMessage(tabs[0].id, { type: "CLOSE_SIDEBAR" }).catch(() => {});
+          }
+        });
+      }
+      // 3. If running as Chrome native sidePanel or window
+      if (typeof window.close === "function") {
+        window.close();
+      }
+    });
+  }
+
   if (telemetryToggle) {
     telemetryToggle.addEventListener("click", toggleTelemetry);
   }
