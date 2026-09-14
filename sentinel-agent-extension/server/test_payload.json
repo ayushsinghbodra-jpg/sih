@@ -1,0 +1,10 @@
+{
+  "task_goal": "log in and continue",
+  "redacted_screenshot": "PLACEHOLDER_BASE64_IMAGE_DATA",
+  "elements": [
+    {"id": "el_1", "type": "button", "label": "Sign In"},
+    {"id": "el_2", "type": "input", "label": "[REDACTED:PASSWORD]"},
+    {"id": "el_3", "type": "input", "label": "[REDACTED:EMAIL]"}
+  ],
+  "step_history": []
+}
