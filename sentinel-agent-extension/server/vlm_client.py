@@ -32,7 +32,7 @@ def call_vlm(system_prompt: str, task_goal: str, elements: list, screenshot_base
         user_content = (
             f"Task Goal: {task_goal}\n\n"
             f"Interactable Elements:\n{json.dumps(elements, indent=2)}\n\n"
-            "Decide the single next action and respond with JSON only."
+            "Process the task goal against the screenshot and interactable elements according to your instructions, and respond with JSON only."
         )
 
         model = genai.GenerativeModel(
