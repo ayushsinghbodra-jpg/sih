@@ -35,45 +35,33 @@ Cloud-based AI agents require full access to user screens and DOM states, which 
 
 ```mermaid
 flowchart TD
-    subgraph Browser["Client-Side Browser Extension (Chrome MV3 & Firefox)"]
-        User(["User Task Input"]) --> Popup["Sidebar Assistant UI (popup.html / popup.js)"]
-        Popup --> Background["Background Service Worker (background.js)"]
-        Background -->|Capture Tab| CS["Content Script Orchestrator (content_script.js)"]
+    subgraph Client["Client-Side Browser Extension (Chrome MV3 / Firefox)"]
+        User["User Task Input"] --> Popup["Sidebar Assistant UI"]
+        Popup --> Background["Background Service Worker"]
+        Background -->|"Capture Visible Tab"| ContentScript["Content Script Orchestrator"]
         
-        subgraph Perception["Multi-Tier On-Device Perception"]
-            CS -->|Screenshot + DOM| PE["Perception Engine (perception.js)"]
-            PE --> UG["UI Grounding Engine (ui_grounding.js)<br/>• YOLO11n (WebGPU / WASM SIMD)<br/>• ARIA & Form Structure Extractor"]
-            PE --> SD["Sensitive Detector (sensitive_detector.js)<br/>• Input Types & Autocomplete<br/>• Regex PII (Aadhaar, PAN, Cards, Email)<br/>• BlazeFace Biometrics"]
-            PE --> RP["Redaction Policy (redaction_policy.js)<br/>• Confidence & Safety Bias"]
-        end
+        ContentScript --> Perception["On-Device Perception Stack<br/>• YOLO11n ONNX (WebGPU / WASM SIMD)<br/>• BlazeFace Face Detection<br/>• Smart Form & Feed Grounding"]
         
-        subgraph Privacy["Zero-Knowledge Privacy Engine"]
-            RP --> RPX["Pixel Redaction (redaction.js)<br/>• Canvas Blackout Box Masking"]
-            RP --> RL["Label Sanitizer (redaction.js)<br/>• [REDACTED:TAG] Transformation"]
-            RPX & RL --> PB["Payload Builder (payload_builder.js)"]
-        end
+        Perception --> Privacy["Zero-Knowledge Privacy Engine<br/>• Canvas Pixel Blackout (#000000)<br/>• [REDACTED:TAG] Label Sanitization"]
         
-        PB -->|Sanitized Payload (HTTPS)| Background
+        Privacy --> Payload["Sanitized Payload Builder"]
         
-        subgraph ActionLayer["Client Execution & Telemetry"]
-            AE["Action Executor (action_executor.js)<br/>• Coordinate-to-Node Grounding<br/>• React/Vue Synthetic Event Dispatch"]
-            MO["MutationObserver<br/>• Debounced Dynamic DOM Watcher"]
-        end
+        ContentScript --> ActionExec["Action Execution Engine<br/>• Coordinate-to-Node Grounding<br/>• React / Vue Synthetic Event Dispatch"]
+        
+        ActionExec --> Mutation["MutationObserver<br/>(Debounced Page Change Watcher)"]
+        Mutation -.->|"Auto Trigger Next Step"| ContentScript
     end
 
-    subgraph Server["Centralized VLM Reasoning Backend (FastAPI)"]
-        Background -->|POST /act| App["FastAPI Server (app.py)"]
-        App --> VLM["VLM Client (vlm_client.py)<br/>• Multi-Key Rotation Matrix<br/>• Gemini Flash Multi-Model Fallback"]
-        App --> Parser["Action Parser (parser.py)<br/>• Fault-Tolerant JSON Extraction"]
-        Parser -->|Action Decision| App
+    subgraph ServerSide["Centralized Reasoning Backend (FastAPI + Cloud VLM)"]
+        FastAPIServer["FastAPI Server (/act)"] --> GeminiVLM["Google Gemini VLM<br/>• Multi-Key Rotation Matrix<br/>• Multi-Model Fallback Matrix"]
+        GeminiVLM --> ActionParser["Fault-Tolerant Action Parser"]
+        ActionParser --> ActionDecision["Action Decision JSON<br/>(click / type / scroll / navigate)"]
     end
 
-    App -->|JSON Action| Background
-    Background --> CS
-    CS --> AE
-    AE -->|DOM Mutation| MO
-    MO -.->|Auto Trigger Follow-Up Step| CS
-    CS -->|Live Millisecond Telemetry| Popup
+    Payload -->|"POST /act (Clean Base64 + Schema)"| FastAPIServer
+    ActionDecision --> Background
+    Background --> ContentScript
+    ContentScript -->|"Live Millisecond Telemetry"| Popup
 ```
 
 ---
