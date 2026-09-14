@@ -66,6 +66,9 @@
     logEl.scrollTop = logEl.scrollHeight;
   }
 
+  let lastMessageKey = "";
+  let lastMessageTime = 0;
+
   function handlePipelineMessage(msg) {
     console.log("[SentinelAgent Popup] Received pipeline message:", msg);
     if (!msg || typeof msg !== "object") return;
@@ -76,6 +79,16 @@
     }
 
     if (!msg.stage) return;
+
+    // Deduplication guard: ignore identical stage + detail arriving within 300ms
+    const now = Date.now();
+    const key = `${msg.stage}::${msg.detail}`;
+    if (key === lastMessageKey && now - lastMessageTime < 300) {
+      console.log("[SentinelAgent Popup] Ignored rapid duplicate message:", key);
+      return;
+    }
+    lastMessageKey = key;
+    lastMessageTime = now;
 
     appendLogLine(msg.stage, msg.detail);
 

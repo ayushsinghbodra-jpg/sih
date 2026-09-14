@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SentinelAgent - Live Verification Demo Portal</title>
+  <style>
+    :root {
+      --primary: #0284c7;
+      --primary-hover: #0369a1;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --radius: 12px;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: radial-gradient(circle at 10% 20%, #e0f2fe 0%, #f8fafc 90%);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 30px;
+    }
+    .avatar-wrapper {
+      position: relative;
+    }
+    .avatar {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      border: 3px solid var(--primary);
+      object-fit: cover;
+      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.2);
+    }
+    .avatar-badge {
+      position: absolute;
+      bottom: -2px;
+      right: -2px;
+      background: #10b981;
+      color: white;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+    .title-group h1 {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .title-group p {
+      font-size: 14px;
+      color: var(--muted);
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.02);
+      width: 100%;
+      max-width: 440px;
+      padding: 32px;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: #334155;
+    }
+    .field-hint {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+    input[type="text"],
+    input[type="email"],
+    input[type="password"] {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+    }
+    .btn {
+      width: 100%;
+      padding: 12px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s, transform 0.1s;
+    }
+    .btn:hover {
+      background: var(--primary-hover);
+    }
+    .btn:active {
+      transform: scale(0.98);
+    }
+    .btn-secondary {
+      background: #e2e8f0;
+      color: #334155;
+      margin-top: 10px;
+    }
+    .btn-secondary:hover {
+      background: #cbd5e1;
+    }
+    .status-alert {
+      display: none;
+      margin-top: 20px;
+      padding: 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .status-alert--success {
+      background: #ecfdf5;
+      border: 1px solid #a7f3d0;
+      color: #065f46;
+    }
+    .status-alert--error {
+      background: #fff1f2;
+      border: 1px solid #fecdd3;
+      color: #be123c;
+    }
+    .privacy-notice {
+      margin-top: 24px;
+      padding: 12px 14px;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 8px;
+      font-size: 12px;
+      color: #166534;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="avatar-wrapper">
+      <img id="userFaceImage" class="avatar" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%2338bdf8'/><circle cx='50' cy='38' r='18' fill='%23ffffff'/><path d='M20 85 C25 62, 75 62, 80 85' fill='%23ffffff'/></svg>" alt="User Profile Face">
+      <span class="avatar-badge">Verified</span>
+    </div>
+    <div class="title-group">
+      <h1>Sentinel Secure Portal</h1>
+      <p>Zero-Knowledge Privacy-Preserving Agent Demo</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <form id="loginForm" onsubmit="event.preventDefault(); handleLogin();">
+      <div class="form-group">
+        <label for="emailInput">Work Email</label>
+        <input type="email" id="emailInput" name="email" value="officer.sharma@isro.gov.in" autocomplete="email" required>
+        <div class="field-hint">Detected as Email PII</div>
+      </div>
+
+      <div class="form-group">
+        <label for="passwordInput">Account Password</label>
+        <input type="password" id="passwordInput" name="password" value="SuperSecretPassword@2026" autocomplete="current-password" required>
+        <div class="field-hint">Masked as [REDACTED:PASSWORD]</div>
+      </div>
+
+      <button type="submit" id="submitButton" class="btn">Sign In to Dashboard</button>
+      <button type="button" id="toggleAlertBtn" class="btn btn-secondary" onclick="simulateMutation()">Trigger Dynamic DOM Change</button>
+    </form>
+
+    <div id="statusAlert" class="status-alert status-alert--success">
+      ✅ <strong>Authentication Succeeded:</strong> Session token generated. Welcome to ISRO Secure Console.
+    </div>
+
+    <div class="privacy-notice">
+      🔒 <strong>Sentinel On-Device Redaction:</strong> Password text and face image are scrubbed before reaching the server.
+    </div>
+  </div>
+
+  <script>
+    function handleLogin() {
+      const email = document.getElementById("emailInput").value;
+      const alertBox = document.getElementById("statusAlert");
+      alertBox.className = "status-alert status-alert--success";
+      alertBox.innerHTML = `✅ <strong>Authentication Successful:</strong> Logged in as <em>${email}</em>. Dashboard loaded.`;
+      alertBox.style.display = "block";
+    }
+
+    function simulateMutation() {
+      const alertBox = document.getElementById("statusAlert");
+      alertBox.className = "status-alert status-alert--error";
+      alertBox.innerHTML = `⚠️ <strong>Notice:</strong> Dynamic DOM update received at ${new Date().toLocaleTimeString()}.`;
+      alertBox.style.display = alertBox.style.display === "block" ? "none" : "block";
+    }
+  </script>
+</body>
+</html>

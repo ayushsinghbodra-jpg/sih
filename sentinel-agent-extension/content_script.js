@@ -213,8 +213,14 @@ async function runPipeline(taskGoal) {
     sendStatus("error", error.message || "Pipeline execution failed");
   } finally {
     isProcessing = false;
-    currentTaskGoal = null; // Clear active goal after single run to prevent mutation loop
-    pendingRerun = false;
+    if (pendingRerun && currentTaskGoal) {
+      pendingRerun = false;
+      setTimeout(() => {
+        if (!isProcessing && currentTaskGoal) {
+          runPipeline(currentTaskGoal);
+        }
+      }, 400);
+    }
   }
 }
 
@@ -229,6 +235,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const goal = message.task_goal || message.taskGoal;
     if (goal) {
       console.log(`[SentinelAgent ContentScript] Starting task goal: "${goal}"`);
+      currentTaskGoal = goal;
       runPipeline(goal);
       sendResponse({ status: "started", taskGoal: goal });
       return false;
@@ -251,10 +258,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 /**
  * 5. MutationObserver Setup (Debounced at 400ms)
- * Watches for DOM mutations during an active task and re-triggers pipeline without polling.
+ * Watches for DOM mutations after an action and re-triggers pipeline without user intervention.
  */
 const observer = new MutationObserver((mutations) => {
-  if (!currentTaskGoal) {
+  if (!currentTaskGoal || isProcessing) {
     return;
   }
 
@@ -267,13 +274,9 @@ const observer = new MutationObserver((mutations) => {
   }
 
   mutationDebounceTimer = setTimeout(() => {
-    if (!currentTaskGoal) return;
-    if (isProcessing) {
-      pendingRerun = true;
-    } else {
-      console.log("[SentinelAgent ContentScript] DOM mutation detected. Re-triggering pipeline for goal:", currentTaskGoal);
-      runPipeline(currentTaskGoal);
-    }
+    if (!currentTaskGoal || isProcessing) return;
+    console.log("[SentinelAgent ContentScript] DOM mutation detected. Auto re-triggering pipeline for goal:", currentTaskGoal);
+    runPipeline(currentTaskGoal);
   }, 400);
 });
 
