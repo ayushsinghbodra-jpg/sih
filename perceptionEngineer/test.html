@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Perception Engineer Test Harness - On-Device Visual Perception</title>
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.7/dist/blazeface.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #090d16;
+      --card-bg: rgba(18, 24, 38, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --accent-blue: #3b82f6;
+      --accent-cyan: #06b6d4;
+      --accent-emerald: #10b981;
+      --accent-rose: #f43f5e;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --glass-glow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(59, 130, 246, 0.12) 0%, transparent 45%),
+        radial-gradient(circle at 85% 85%, rgba(6, 182, 212, 0.10) 0%, transparent 45%);
+      color: var(--text-main);
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .badge-role {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(6, 182, 212, 0.2));
+      border: 1px solid rgba(59, 130, 246, 0.4);
+      color: #60a5fa;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      background: linear-gradient(90deg, #ffffff, #94a3b8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .metrics-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .metric-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: var(--glass-glow);
+    }
+
+    .metric-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .metric-value {
+      font-size: 22px;
+      font-weight: 700;
+      margin-top: 6px;
+      color: #ffffff;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .val-green { color: var(--accent-emerald); }
+    .val-red { color: var(--accent-rose); }
+    .val-blue { color: #60a5fa; }
+
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    @media (max-width: 1024px) {
+      .main-grid { grid-template-columns: 1fr; }
+    }
+
+    .panel {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: var(--glass-glow);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .panel-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+    }
+
+    select, button {
+      background: #1e293b;
+      color: #f8fafc;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    select:hover, button:hover {
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 12px rgba(59, 130, 246, 0.3);
+    }
+
+    button.btn-primary {
+      background: linear-gradient(135deg, var(--accent-blue), #2563eb);
+      border: none;
+      font-weight: 600;
+    }
+
+    .canvas-container {
+      position: relative;
+      width: 100%;
+      background: #020617;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      min-height: 400px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    canvas {
+      max-width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .output-box {
+      background: #020617;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: #38bdf8;
+      overflow-y: auto;
+      max-height: 420px;
+      white-space: pre-wrap;
+    }
+
+    .legend {
+      display: flex;
+      gap: 16px;
+      margin-top: 12px;
+      font-size: 12px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+    }
+
+    .dot-safe { background: var(--accent-emerald); }
+    .dot-redacted { background: var(--accent-rose); box-shadow: 0 0 8px var(--accent-rose); }
+
+    .test-log {
+      margin-top: 16px;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div>
+      <h1>Person A — Perception Engineer Test Bench</h1>
+      <div class="subtitle">On-device Visual Perception & DOM PII Redaction Suite (ISRO SIH 26171)</div>
+    </div>
+    <div class="badge-role">Independent Client Test Harness</div>
+  </header>
+
+  <div class="metrics-bar">
+    <div class="metric-card">
+      <div class="metric-label">Execution Latency</div>
+      <div class="metric-value val-blue" id="metric-latency">-- ms</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Grounded UI Elements</div>
+      <div class="metric-value" id="metric-elements">0</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-card-inner">
+        <div class="metric-label">Sensitive / PII Flagged</div>
+        <div class="metric-value val-red" id="metric-sensitive">0</div>
+      </div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Engine Backend</div>
+      <div class="metric-value val-green" id="metric-backend">DOM + Heuristic</div>
+    </div>
+  </div>
+
+  <div class="main-grid">
+    <!-- Left Panel: Visual Canvas Overlay -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Screen Context & Redaction Canvas</div>
+        <div class="controls">
+          <select id="backend-select">
+            <option value="auto">Backend: Auto (WebGPU -> WASM -> DOM)</option>
+            <option value="webgpu">Backend: WebGPU (ONNX Vision)</option>
+            <option value="wasm">Backend: WASM (ONNX Vision)</option>
+            <option value="dom">Backend: DOM Query Fallback</option>
+          </select>
+          <select id="sample-select">
+            <option value="loginForm">Sample 1: Login Form with Aadhaar & Password</option>
+            <option value="checkoutForm">Sample 2: E-Commerce Checkout with Credit Card & PAN</option>
+            <option value="custom">📷 Custom Upload (File + DOM JSON)</option>
+          </select>
+          <label for="custom-file-input" class="btn-primary" style="display:none; cursor:pointer;" id="upload-label">
+            📁 Choose Image
+          </label>
+          <input type="file" id="custom-file-input" accept="image/*" style="display:none;">
+          <button class="btn-primary" id="btn-analyze">Run analyzeScreen()</button>
+        </div>
+      </div>
+
+      <div class="canvas-container">
+        <canvas id="perception-canvas" width="800" height="600"></canvas>
+      </div>
+
+      <div class="legend">
+        <div class="legend-item"><div class="dot dot-safe"></div> Grounded UI Element (Safe)</div>
+        <div class="legend-item"><div class="dot dot-redacted"></div> Redacted Sensitive / PII Region</div>
+      </div>
+    </div>
+
+    <!-- Right Panel: JSON Output & Contract Verification -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">Contract Output JSON [analyzeScreen()]</div>
+      </div>
+      <div class="output-box" id="json-output">// Click "Run analyzeScreen()" to inspect returned contract payload</div>
+
+      <div class="test-log" id="test-log">
+        <strong>Contract Verification Status:</strong> Ready for testing against single exported function contract `analyzeScreen(screenshotBase64, domTree)`.
+      </div>
+    </div>
+  </div>
+
+  <!-- Load Scripts -->
+  <script src="perception/sample_data.js"></script>
+  <script src="perception/ui_grounding.js"></script>
+  <script src="perception/sensitive_detector.js"></script>
+  <script src="perception/redaction_policy.js"></script>
+  <script src="perception/perception.js"></script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const sampleSelect = document.getElementById('sample-select');
+      const backendSelect = document.getElementById('backend-select');
+      const customFileInput = document.getElementById('custom-file-input');
+      const uploadLabel = document.getElementById('upload-label');
+      const btnAnalyze = document.getElementById('btn-analyze');
+      const canvas = document.getElementById('perception-canvas');
+      const ctx = canvas.getContext('2d');
+      const jsonOutput = document.getElementById('json-output');
+      const metricLatency = document.getElementById('metric-latency');
+      const metricElements = document.getElementById('metric-elements');
+      const metricSensitive = document.getElementById('metric-sensitive');
+      const metricBackend = document.getElementById('metric-backend');
+      const testLog = document.getElementById('test-log');
+
+      let currentSample = window.PERCEPTION_SAMPLE_DATA[sampleSelect.value];
+      let customUploadedBase64 = null;
+      let customDomTree = null;
+      let activePerceptionEngine = null;
+
+      sampleSelect.addEventListener('change', () => {
+        if (sampleSelect.value === 'custom') {
+          uploadLabel.style.display = 'inline-block';
+          if (!customUploadedBase64) {
+            customFileInput.click();
+          } else {
+            currentSample = { screenshotBase64: customUploadedBase64, domTree: customDomTree };
+            renderSampleImage(currentSample);
+          }
+        } else {
+          uploadLabel.style.display = 'none';
+          currentSample = window.PERCEPTION_SAMPLE_DATA[sampleSelect.value];
+          renderSampleImage(currentSample);
+        }
+      });
+
+      customFileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            customUploadedBase64 = event.target.result;
+
+            const domInputStr = prompt(
+              "Paste your custom DOM HTML string or DOM JSON tree below:",
+              `<body>\n  <div class="login">\n    <label>Email</label>\n    <input type="email" value="rahul.sharma@gmail.com">\n    <label>Password</label>\n    <input type="password" value="MySecretPassword123!">\n    <button>Sign In</button>\n  </div>\n</body>`
+            );
+
+            if (domInputStr) {
+              const trimmed = domInputStr.trim();
+              if (trimmed.startsWith('<')) {
+                // Raw HTML string
+                customDomTree = trimmed;
+              } else {
+                try {
+                  customDomTree = JSON.parse(trimmed);
+                } catch (err) {
+                  customDomTree = trimmed; // Treat as text/HTML
+                }
+              }
+            } else {
+              customDomTree = null;
+            }
+
+            currentSample = { screenshotBase64: customUploadedBase64, domTree: customDomTree };
+            renderSampleImage(currentSample);
+            testLog.innerHTML = `<span style="color: #60a5fa;">📷 Custom screenshot loaded successfully (${file.name}). Click "Run analyzeScreen()" to execute.</span>`;
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+
+      async function getEngineInstance(backendChoice) {
+        if (!activePerceptionEngine || activePerceptionEngine.backendChoice !== backendChoice) {
+          activePerceptionEngine = new window.PerceptionEngine({ backend: backendChoice });
+          activePerceptionEngine.backendChoice = backendChoice;
+          await activePerceptionEngine.initialize();
+        }
+        return activePerceptionEngine;
+      }
+
+      function renderSampleImage(sample, analysisResult = null) {
+        const img = new Image();
+        img.onload = () => {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+          if (analysisResult && analysisResult.elements) {
+            analysisResult.elements.forEach(el => {
+              const [x, y, w, h] = el.bbox;
+              
+              if (el.sensitive) {
+                ctx.fillStyle = 'rgba(244, 63, 94, 0.85)';
+                ctx.fillRect(x, y, w, h);
+
+                ctx.strokeStyle = '#f43f5e';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x, y, w, h);
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 11px sans-serif';
+                ctx.fillText(`🔒 [REDACTED: ${el.pii_type || 'PII'}]`, x + 6, y + h / 2 + 4);
+              } else {
+                ctx.strokeStyle = 'rgba(16, 185, 129, 0.8)';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([4, 4]);
+                ctx.strokeRect(x, y, w, h);
+                ctx.setLineDash([]);
+
+                ctx.fillStyle = '#10b981';
+                ctx.font = '10px sans-serif';
+                ctx.fillText(`${el.id} (${el.type})`, x + 4, y - 4 > 10 ? y - 4 : y + 12);
+              }
+            });
+          }
+
+          if (analysisResult && Array.isArray(analysisResult.redactedBoxes)) {
+            analysisResult.redactedBoxes.forEach(r => {
+              if (r.reason === 'face_pii' || r.reason === 'face') {
+                const [x, y, w, h] = r.bbox;
+                ctx.fillStyle = 'rgba(244, 63, 94, 0.9)';
+                ctx.fillRect(x, y, w, h);
+                ctx.strokeStyle = '#f43f5e';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x, y, w, h);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 11px sans-serif';
+                ctx.fillText(`👤 🔒 [REDACTED: FACE]`, x + 4, y + Math.max(16, h / 2));
+              }
+            });
+          }
+        };
+        img.src = sample.screenshotBase64;
+      }
+
+      async function runAnalysis() {
+        currentSample = window.PERCEPTION_SAMPLE_DATA[sampleSelect.value];
+        const selectedBackend = backendSelect.value;
+        jsonOutput.textContent = `// Initializing Perception Engine with backend: [${selectedBackend.toUpperCase()}]...`;
+
+        const engine = await getEngineInstance(selectedBackend);
+
+        const startTime = performance.now();
+        const result = await engine.analyze(currentSample.screenshotBase64, currentSample.domTree);
+        const endTime = performance.now();
+
+        const latency = Math.round(endTime - startTime);
+
+        metricLatency.textContent = `${latency} ms`;
+        metricElements.textContent = result.elements.length;
+        
+        const sensitiveCount = result.elements.filter(e => e.sensitive).length;
+        metricSensitive.textContent = sensitiveCount;
+        metricBackend.textContent = (result.summary?.groundingBackend || selectedBackend).toUpperCase();
+
+        renderSampleImage(currentSample, result);
+        jsonOutput.textContent = JSON.stringify(result, null, 2);
+
+        const isValidContract = Array.isArray(result.elements) && result.elements.every(e => e.id && e.type && Array.isArray(e.bbox) && typeof e.sensitive === 'boolean');
+
+        if (isValidContract) {
+          testLog.innerHTML = `<span style="color: #10b981; font-weight: 600;">✓ CONTRACT PASSED:</span> analyzeScreen() executed using <strong>${(result.summary?.groundingBackend || 'DOM').toUpperCase()}</strong> runtime with ${result.elements.length} elements (${sensitiveCount} sensitive redacted).`;
+        } else {
+          testLog.innerHTML = `<span style="color: #f43f5e; font-weight: 600;">✕ CONTRACT FAIL:</span> Schema did not match required contract specifications.`;
+        }
+      }
+
+      sampleSelect.addEventListener('change', () => {
+        currentSample = window.PERCEPTION_SAMPLE_DATA[sampleSelect.value];
+        renderSampleImage(currentSample);
+      });
+
+      btnAnalyze.addEventListener('click', runAnalysis);
+
+      // Initial Render
+      renderSampleImage(currentSample);
+    });
+  </script>
+</body>
+</html>
