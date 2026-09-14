@@ -5,22 +5,25 @@ from dotenv import load_dotenv
 import google.generativeai as genai
 
 load_dotenv()
-api_key = os.getenv("GEMINI_API_KEY") or os.getenv("VLM_API_KEY")
-if api_key:
-    genai.configure(api_key=api_key)
+
+
+def get_api_keys() -> list:
+    keys_str = os.getenv("GEMINI_API_KEYS") or ""
+    keys = [k.strip() for k in keys_str.split(",") if k.strip()]
+    single_key = os.getenv("GEMINI_API_KEY") or os.getenv("VLM_API_KEY")
+    if single_key and single_key not in keys:
+        keys.insert(0, single_key.strip())
+    return keys
 
 
 def call_vlm(system_prompt: str, task_goal: str, elements: list, screenshot_base64: str) -> str:
     """
-    Calls the Gemini vision-language model with the system prompt, task goal,
-    interactable elements list, and base64-encoded screenshot.
+    Calls the Gemini vision-language model with multi-key rotation and multi-model fallback.
     """
     try:
-        current_api_key = os.getenv("GEMINI_API_KEY") or os.getenv("VLM_API_KEY")
-        if not current_api_key:
-            raise RuntimeError("GEMINI_API_KEY is not configured in .env")
-
-        genai.configure(api_key=current_api_key)
+        keys = get_api_keys()
+        if not keys:
+            raise RuntimeError("No GEMINI_API_KEY configured in .env")
 
         # Clean base64 string if a data URI prefix was attached
         cleaned_b64 = screenshot_base64.strip()
@@ -47,22 +50,29 @@ def call_vlm(system_prompt: str, task_goal: str, elements: list, screenshot_base
             "data": image_bytes
         }
 
-        for model_name in candidate_models:
+        # Multi-key + Multi-model fallback matrix
+        for key in keys:
             try:
-                model = genai.GenerativeModel(
-                    model_name=model_name,
-                    system_instruction=system_prompt,
-                    generation_config={"temperature": 0.0, "response_mime_type": "application/json"}
-                )
-                response = model.generate_content([image_part, user_content])
-                if response and response.text:
-                    return response.text
+                genai.configure(api_key=key)
             except Exception as e:
-                last_error = e
                 continue
+
+            for model_name in candidate_models:
+                try:
+                    model = genai.GenerativeModel(
+                        model_name=model_name,
+                        system_instruction=system_prompt,
+                        generation_config={"temperature": 0.0, "response_mime_type": "application/json"}
+                    )
+                    response = model.generate_content([image_part, user_content])
+                    if response and response.text:
+                        return response.text
+                except Exception as e:
+                    last_error = e
+                    continue
 
         if last_error:
             raise last_error
-        raise RuntimeError("Empty response received from Gemini VLM across candidate models.")
+        raise RuntimeError("Empty response received from Gemini VLM across candidate keys and models.")
     except Exception as exc:
         raise RuntimeError(f"VLM call failed: {str(exc)}") from exc
