@@ -1,54 +1,80 @@
-# JSON Contracts (Stage 0 Alignment)
+# SentinelAgent JSON & Message Contracts
 
-## 1. Elements Shape (From A -> Extension DOM Parser)
+---
+
+## 1. Elements Shape (From Person A -> Perception DOM Parser)
 ```json
 [
   {
-    "id": "elem_1",
-    "tag": "button",
-    "text": "Submit",
-    "role": "button",
-    "attributes": {
-      "type": "submit",
-      "name": "login"
-    },
-    "bbox": {
-      "x": 120,
-      "y": 340,
-      "width": 100,
-      "height": 40
-    }
+    "id": "el_1",
+    "type": "button",
+    "label": "Sign In"
+  },
+  {
+    "id": "el_2",
+    "type": "input",
+    "label": "[REDACTED:PASSWORD]"
+  },
+  {
+    "id": "el_3",
+    "type": "input",
+    "label": "[REDACTED:EMAIL]"
   }
 ]
 ```
 
-## 2. Payload Shape (From B -> Server `/act` Endpoint)
+---
+
+## 2. Server Request Payload (From Person B -> Server `POST /act`)
 ```json
 {
-  "task": "Click the login button and sign in",
-  "step": 1,
-  "screenshot": "data:image/png;base64,...",
-  "elements": [ ... ],
-  "history": [
-    {
-      "action": "navigate",
-      "url": "https://example.com"
-    }
-  ]
+  "task_goal": "log in and continue",
+  "redacted_screenshot": "<base64 JPEG without prefix>",
+  "elements": [
+    {"id": "el_1", "type": "button", "label": "Sign In"},
+    {"id": "el_2", "type": "input", "label": "[REDACTED:PASSWORD]"},
+    {"id": "el_3", "type": "input", "label": "[REDACTED:EMAIL]"}
+  ],
+  "step_history": []
 }
 ```
 
-## 3. Action Shape (Server Response -> Extension Runner)
+---
+
+## 3. Server Response Action (Server -> Person B Action Runner)
 ```json
 {
   "action": "click",
-  "target_id": "elem_1",
-  "coordinates": {
-    "x": 170,
-    "y": 360
-  },
-  "value": null,
-  "thought": "Found the submit button, clicking to proceed",
-  "done": false
+  "target_id": "el_1",
+  "value": null
 }
 ```
+*Valid `action` values:* `"click"`, `"type"`, `"scroll"`, `"none"`  
+*`value`:* `string` (for `"type"`) or `null` (for `"click"` / `"scroll"` / `"none"`).
+
+---
+
+## 4. Extension UI Pipeline Events (Person B Background -> Popup UI)
+Sent via `chrome.runtime.sendMessage({ stage: "<stage>", detail: "<text>" })`:
+
+| Stage Key | Icon | Description | Example Detail |
+| :--- | :---: | :--- | :--- |
+| `captured` | 📷 | Tab screenshot taken | `"Captured screen"` |
+| `detected` | 🔍 | Interactive DOM elements detected | `"Found 8 elements"` |
+| `redacted` | 🔒 | Sensitive data masked on-device (Highlighted Orange) | `"password, email, face"` |
+| `sent` | 📡 | Sanitized payload dispatched to server | `"Dispatched payload to /act"` |
+| `server` | 🧠 | VLM reasoning action received | `"Action: click Sign In"` |
+| `executed` | ✅ | Action executed in active tab (Highlighted Green) | `"Action completed successfully"` |
+| `error` | ⚠️ | Server or execution error | `"VLM request timeout"` |
+
+---
+
+## 5. Popup Task Trigger (Popup UI -> Person B Background)
+Sent when the user enters a prompt and submits the composer:
+```json
+{
+  "type": "START_TASK",
+  "task_goal": "log into my account and navigate to dashboard"
+}
+```
+*(Open integration item: Pending final listener sign-off from Person B in `background.js`)*
