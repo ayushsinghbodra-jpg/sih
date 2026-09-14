@@ -64,7 +64,10 @@ def call_vlm(system_prompt: str, task_goal: str, elements: list, screenshot_base
                         system_instruction=system_prompt,
                         generation_config={"temperature": 0.0, "response_mime_type": "application/json"}
                     )
-                    response = model.generate_content([image_part, user_content])
+                    response = model.generate_content(
+                        [image_part, user_content],
+                        request_options={"timeout": 6.0}
+                    )
                     if response and response.text:
                         return response.text
                 except Exception as e:
