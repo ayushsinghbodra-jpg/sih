@@ -1,10 +1,30 @@
 import base64
 import json
+import logging
 import os
 from dotenv import load_dotenv
 import google.generativeai as genai
 
-load_dotenv()
+# Load .env relative to this file's directory
+env_path = os.path.join(os.path.dirname(__file__), ".env")
+if os.path.exists(env_path):
+    load_dotenv(env_path)
+else:
+    load_dotenv()
+logger = logging.getLogger("sentinel.vlm")
+
+# Track the last successfully working API key index
+_current_key_index = 0
+
+CANDIDATE_MODELS = [
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+    "gemini-1.5-pro",
+    "gemini-2.5-pro",
+    "gemini-flash-latest",
+    "gemini-pro-latest"
+]
 
 
 def get_api_keys() -> list:
@@ -19,7 +39,9 @@ def get_api_keys() -> list:
 def call_vlm(system_prompt: str, task_goal: str, elements: list, screenshot_base64: str) -> str:
     """
     Calls the Gemini vision-language model with multi-key rotation and multi-model fallback.
+    Automatically switches API keys and model tiers when quotas or rate limits are reached.
     """
+    global _current_key_index
     try:
         keys = get_api_keys()
         if not keys:
@@ -42,23 +64,30 @@ def call_vlm(system_prompt: str, task_goal: str, elements: list, screenshot_base
             "Process the task goal against the screenshot and interactable elements according to your instructions, and respond with JSON only."
         )
 
-        candidate_models = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-3.6-flash"]
-        last_error = None
-
         image_part = {
             "mime_type": "image/jpeg",
             "data": image_bytes
         }
 
-        # Multi-key + Multi-model fallback matrix
-        for key in keys:
+        last_error = None
+        num_keys = len(keys)
+
+        # Iterate through keys starting from the last known good index
+        for i in range(num_keys):
+            idx = (_current_key_index + i) % num_keys
+            key = keys[idx]
+            masked_key = f"{key[:6]}...{key[-4:]}" if len(key) > 10 else "***"
+
             try:
                 genai.configure(api_key=key)
             except Exception as e:
+                logger.warning(f"[VLM] Failed to configure API key {masked_key}: {e}")
                 continue
 
-            for model_name in candidate_models:
+            # Iterate through model tiers
+            for model_name in CANDIDATE_MODELS:
                 try:
+                    logger.info(f"[VLM] Invoking {model_name} with key {masked_key}...")
                     model = genai.GenerativeModel(
                         model_name=model_name,
                         system_instruction=system_prompt,
@@ -66,13 +95,20 @@ def call_vlm(system_prompt: str, task_goal: str, elements: list, screenshot_base
                     )
                     response = model.generate_content(
                         [image_part, user_content],
-                        request_options={"timeout": 6.0}
+                        request_options={"timeout": 6.5}
                     )
                     if response and response.text:
+                        _current_key_index = idx  # Remember active working key
                         return response.text
                 except Exception as e:
                     last_error = e
-                    continue
+                    err_msg = str(e).lower()
+                    if "quota" in err_msg or "resourceexhausted" in err_msg or "429" in err_msg or "limit" in err_msg:
+                        logger.warning(f"[VLM] Key {masked_key} quota/rate limit exhausted on {model_name}. Rotating to next API key/model...")
+                        break  # Break model loop to switch key immediately
+                    else:
+                        logger.warning(f"[VLM] Model {model_name} failed with {masked_key}: {e}. Trying next candidate model...")
+                        continue
 
         if last_error:
             raise last_error

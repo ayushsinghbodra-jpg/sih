@@ -297,11 +297,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return false;
 });
 
-function toggleSentinelSidebar(forceOpen) {
+function toggleSentinelSidebar(forceOpen, persist = true) {
   let iframe = document.getElementById("sentinel-sidebar-iframe");
   let launcher = document.getElementById("sentinel-floating-launcher");
   const isOpen = iframe && iframe.style.transform === "translateX(0px)";
   const shouldOpen = forceOpen !== undefined ? forceOpen : !isOpen;
+
+  if (persist && typeof chrome !== "undefined" && chrome.storage?.local) {
+    chrome.storage.local.set({ sentinel_sidebar_open: shouldOpen });
+  }
 
   if (!iframe) {
     iframe = document.createElement("iframe");
@@ -311,7 +315,7 @@ function toggleSentinelSidebar(forceOpen) {
     document.body.appendChild(iframe);
     // Trigger transition on next frame
     requestAnimationFrame(() => {
-      iframe.style.transform = "translateX(0px)";
+      iframe.style.transform = shouldOpen ? "translateX(0px)" : "translateX(100%)";
     });
   } else {
     iframe.style.transform = shouldOpen ? "translateX(0px)" : "translateX(100%)";
@@ -325,9 +329,30 @@ function toggleSentinelSidebar(forceOpen) {
 // Listen for iframe postMessages (e.g. close button inside sidebar)
 window.addEventListener("message", (event) => {
   if (event.data && event.data.type === "SENTINEL_CLOSE_SIDEBAR") {
-    toggleSentinelSidebar(false);
+    toggleSentinelSidebar(false, true);
   }
 });
+
+// Auto-restore open state on new pages / tab navigation if previously opened
+function restoreSidebarState() {
+  if (typeof chrome !== "undefined" && chrome.storage?.local) {
+    chrome.storage.local.get(["sentinel_sidebar_open"], (res) => {
+      if (res && res.sentinel_sidebar_open === true) {
+        toggleSentinelSidebar(true, false);
+      }
+    });
+  }
+}
+
+// Listen for storage changes across tabs to keep open state in sync
+if (typeof chrome !== "undefined" && chrome.storage?.onChanged) {
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === "local" && changes.sentinel_sidebar_open) {
+      const shouldOpen = changes.sentinel_sidebar_open.newValue === true;
+      toggleSentinelSidebar(shouldOpen, false);
+    }
+  });
+}
 
 // Inject floating edge tab on page load
 function injectFloatingLauncher() {
@@ -347,7 +372,7 @@ function injectFloatingLauncher() {
     launcher.style.backgroundColor = "#0d9488";
   });
   launcher.addEventListener("click", () => {
-    toggleSentinelSidebar(true);
+    toggleSentinelSidebar(true, true);
   });
   if (document.body) {
     document.body.appendChild(launcher);
@@ -357,9 +382,13 @@ function injectFloatingLauncher() {
 }
 
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", injectFloatingLauncher);
+  document.addEventListener("DOMContentLoaded", () => {
+    injectFloatingLauncher();
+    restoreSidebarState();
+  });
 } else {
   injectFloatingLauncher();
+  restoreSidebarState();
 }
 
 /**

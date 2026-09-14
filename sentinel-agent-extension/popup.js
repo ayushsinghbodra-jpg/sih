@@ -69,11 +69,15 @@
   const closeSidebarBtn = document.getElementById("closeSidebarBtn");
   if (closeSidebarBtn) {
     closeSidebarBtn.addEventListener("click", () => {
-      // 1. PostMessage to parent frame (if inside in-page iframe)
+      // 1. Update persistent storage state so it stays closed on new tabs
+      if (typeof chrome !== "undefined" && chrome.storage?.local) {
+        chrome.storage.local.set({ sentinel_sidebar_open: false });
+      }
+      // 2. PostMessage to parent frame (if inside in-page iframe)
       if (window.parent && window.parent !== window) {
         window.parent.postMessage({ type: "SENTINEL_CLOSE_SIDEBAR" }, "*");
       }
-      // 2. Send message to tab / runtime
+      // 3. Send message to tab / runtime
       if (typeof chrome !== "undefined" && chrome.tabs && chrome.tabs.query) {
         chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
           if (tabs && tabs[0]?.id) {
@@ -81,7 +85,7 @@
           }
         });
       }
-      // 3. If running as Chrome native sidePanel or window
+      // 4. If running as Chrome native sidePanel or window
       if (typeof window.close === "function") {
         window.close();
       }
@@ -92,9 +96,43 @@
     telemetryToggle.addEventListener("click", toggleTelemetry);
   }
 
+  // Storage Key for Persistent Chat History
+  const CHAT_HISTORY_KEY = "sentinel_chat_history";
+
+  // Load and Restore Chat History on Startup
+  function loadChatHistory() {
+    if (typeof chrome !== "undefined" && chrome.storage?.local) {
+      chrome.storage.local.get([CHAT_HISTORY_KEY], (res) => {
+        const history = res && res[CHAT_HISTORY_KEY];
+        if (Array.isArray(history) && history.length > 0) {
+          const emptyEl = document.getElementById("logEmpty");
+          if (emptyEl) emptyEl.remove();
+          history.forEach((item) => {
+            renderLogLine(item.stage, item.detail, item.variant, false);
+          });
+        }
+      });
+    }
+  }
+
+  function saveChatHistoryItem(stage, detail, variant) {
+    if (typeof chrome !== "undefined" && chrome.storage?.local) {
+      chrome.storage.local.get([CHAT_HISTORY_KEY], (res) => {
+        const history = (res && res[CHAT_HISTORY_KEY]) || [];
+        history.push({ stage, detail, variant, timestamp: Date.now() });
+        // Keep last 60 entries
+        const trimmed = history.slice(-60);
+        chrome.storage.local.set({ [CHAT_HISTORY_KEY]: trimmed });
+      });
+    }
+  }
+
   // Clear / New Task Action
   if (newChatBtn) {
     newChatBtn.addEventListener("click", () => {
+      if (typeof chrome !== "undefined" && chrome.storage?.local) {
+        chrome.storage.local.remove([CHAT_HISTORY_KEY]);
+      }
       if (logEl) {
         logEl.innerHTML = `
           <div class="log__empty" id="logEmpty">
@@ -113,11 +151,56 @@
     });
   }
 
-  function appendLogLine(stage, detail, variant) {
+  // Thinking Animation Management
+  function showThinking(subtext = "Analyzing visual structure & privacy...") {
     const emptyEl = document.getElementById("logEmpty");
-    if (emptyEl && emptyEl.parentNode) {
-      emptyEl.remove();
+    if (emptyEl) emptyEl.remove();
+
+    let thinkingCard = document.getElementById("thinkingCard");
+    if (!thinkingCard) {
+      thinkingCard = document.createElement("div");
+      thinkingCard.className = "thinking-card";
+      thinkingCard.id = "thinkingCard";
+      thinkingCard.innerHTML = `
+        <div class="thinking-avatar" aria-hidden="true">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2L4 5.5V11c0 5.25 3.4 9.9 8 11 4.6-1.1 8-5.75 8-11V5.5L12 2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+            <path d="M9 12.2l2 2 4-4.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="thinking-content">
+          <div class="thinking-label">
+            <span>SentinelAgent is thinking</span>
+            <span class="thinking-dots">
+              <span class="thinking-dot"></span>
+              <span class="thinking-dot"></span>
+              <span class="thinking-dot"></span>
+            </span>
+          </div>
+          <span class="thinking-subtext" id="thinkingSubtext">${subtext}</span>
+        </div>
+      `;
+      logEl.appendChild(thinkingCard);
+    } else {
+      const sub = document.getElementById("thinkingSubtext");
+      if (sub) sub.textContent = subtext;
     }
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function hideThinking() {
+    const thinkingCard = document.getElementById("thinkingCard");
+    if (thinkingCard) {
+      thinkingCard.remove();
+    }
+  }
+
+  function renderLogLine(stage, detail, variant, persist = true) {
+    const emptyEl = document.getElementById("logEmpty");
+    if (emptyEl) emptyEl.remove();
+
+    // If active thinking card exists, insert before it or clean it up
+    const thinkingCard = document.getElementById("thinkingCard");
 
     const meta = STAGE_META[stage] || DEFAULT_META;
     const line = document.createElement("div");
@@ -139,10 +222,18 @@
 
     line.appendChild(icon);
     line.appendChild(text);
-    logEl.appendChild(line);
 
-    // Auto scroll to latest row
+    if (thinkingCard && stage !== "task") {
+      logEl.insertBefore(line, thinkingCard);
+    } else {
+      logEl.appendChild(line);
+    }
+
     logEl.scrollTop = logEl.scrollHeight;
+
+    if (persist) {
+      saveChatHistoryItem(stage, detail, variant);
+    }
   }
 
   let lastMessageKey = "";
@@ -155,8 +246,6 @@
     // Handle Live Performance Telemetry
     if (msg.type === "TIMINGS" && msg.timings) {
       const t = msg.timings;
-      console.log("[SentinelAgent Telemetry Update]", t);
-
       if (valCapture) valCapture.textContent = `${t.capture} ms`;
       if (valPerception) valPerception.textContent = `${t.perception} ms`;
       if (valRedact) valRedact.textContent = `${t.redact} ms`;
@@ -164,35 +253,48 @@
       if (valTotal) valTotal.textContent = `${(t.total / 1000).toFixed(2)} s`;
       if (valMemory) valMemory.textContent = t.memory || "~14.2 MB";
       if (valElements) valElements.textContent = `${t.elementsCount} (${t.redactedCount} PII)`;
-
       return;
     }
 
     if (!msg.stage) return;
 
-    // Deduplication guard: ignore identical stage + detail arriving within 300ms
+    // Deduplication guard
     const now = Date.now();
     const key = `${msg.stage}::${msg.detail}`;
     if (key === lastMessageKey && now - lastMessageTime < 300) {
-      console.log("[SentinelAgent Popup] Ignored rapid duplicate message:", key);
       return;
     }
     lastMessageKey = key;
     lastMessageTime = now;
 
-    appendLogLine(msg.stage, msg.detail);
-
-    if (msg.stage === "executed") {
+    // Update thinking animation state or finalize response
+    if (msg.stage === "captured") {
+      showThinking("Captured screenshot. Extracting interactive elements...");
+      renderLogLine(msg.stage, msg.detail);
+    } else if (msg.stage === "detected") {
+      showThinking("Running local PII detectors & policy checks...");
+      renderLogLine(msg.stage, msg.detail);
+    } else if (msg.stage === "redacted") {
+      showThinking("Redacted private data locally. Consulting AI model...");
+      renderLogLine(msg.stage, msg.detail);
+    } else if (msg.stage === "server" || msg.stage === "thought") {
+      hideThinking();
+      renderLogLine(msg.stage, msg.detail, "thought");
+      setStatus("done", "ready");
+    } else if (msg.stage === "executed") {
+      hideThinking();
+      renderLogLine(msg.stage, msg.detail, "executed");
       setStatus("done", "ready");
     } else if (msg.stage === "error") {
+      hideThinking();
+      renderLogLine(msg.stage, msg.detail, "error");
       setStatus("error", "server error");
     } else {
-      setStatus("running", "reasoning…");
+      renderLogLine(msg.stage, msg.detail);
     }
   }
 
   if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
-    console.log("[SentinelAgent Popup] chrome.runtime.onMessage listener attached.");
     chrome.runtime.onMessage.addListener(handlePipelineMessage);
   } else {
     window.addEventListener("message", (event) => handlePipelineMessage(event.data));
@@ -204,13 +306,17 @@
     if (!taskGoal) return;
 
     console.log("[SentinelAgent Popup] Submitting task goal:", taskGoal);
-    appendLogLine("task", `Task: "${taskGoal}"`, "task");
-    setStatus("running", "processing…");
+    renderLogLine("task", `You: "${taskGoal}"`, "task");
+    showThinking("Capturing visual context & planning action...");
+    setStatus("running", "reasoning…");
 
     if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
       chrome.runtime.sendMessage({ type: "START_TASK", task_goal: taskGoal, taskGoal: taskGoal }, (response) => {
         if (chrome.runtime.lastError) {
           console.warn("[SentinelAgent Popup] Error dispatching to background:", chrome.runtime.lastError.message);
+          hideThinking();
+          renderLogLine("error", "Could not reach background worker. Please refresh.", "error");
+          setStatus("error", "error");
         }
       });
     }
@@ -218,4 +324,7 @@
     taskInputEl.value = "";
     taskInputEl.focus();
   });
+
+  // Load history on popup initialization
+  loadChatHistory();
 })();
