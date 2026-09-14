@@ -1,7 +1,7 @@
 /**
  * SentinelAgent popup.
  *
- * Renders pipeline status lines and real-time performance telemetry
+ * Renders pipeline status rows and real-time performance telemetry
  * pushed by background.js / content_script.js via chrome.runtime.sendMessage.
  */
 
@@ -15,7 +15,7 @@
     sent: { icon: "📡", className: "log-line--sent" },
     server: { icon: "🧠", className: "log-line--thought" },
     thought: { icon: "🧠", className: "log-line--thought" },
-    executed: { icon: "✨", className: "log-line--executed" },
+    executed: { icon: "✅", className: "log-line--executed" },
     error: { icon: "⚠️", className: "log-line--error" },
   };
 
@@ -27,12 +27,10 @@
   const composerEl = document.getElementById("composer");
   const taskInputEl = document.getElementById("taskInput");
   const sendButtonEl = document.getElementById("sendButton");
-
-  // Telemetry Elements
+  const contextTitleEl = document.getElementById("contextTitle");
+  const newChatBtn = document.getElementById("newChatBtn");
   const telemetryToggle = document.getElementById("telemetryToggle");
-  const telemetryToggleText = document.getElementById("telemetryToggleText");
   const telemetryDrawer = document.getElementById("telemetryDrawer");
-  const telemetryPillText = document.getElementById("telemetryPillText");
 
   const valCapture = document.getElementById("valCapture");
   const valPerception = document.getElementById("valPerception");
@@ -41,6 +39,18 @@
   const valTotal = document.getElementById("valTotal");
   const valMemory = document.getElementById("valMemory");
   const valElements = document.getElementById("valElements");
+
+  // Query and display active tab title for the context pill
+  if (typeof chrome !== "undefined" && chrome.tabs && chrome.tabs.query) {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs && tabs.length > 0 && tabs[0].title) {
+        if (contextTitleEl) {
+          const title = tabs[0].title.trim();
+          contextTitleEl.textContent = title.length > 28 ? title.slice(0, 28) + "…" : title;
+        }
+      }
+    });
+  }
 
   function setStatus(state, label) {
     if (!statusEl) return;
@@ -53,10 +63,6 @@
     const isOpen = telemetryDrawer.classList.toggle("is-open");
     if (telemetryToggle) {
       telemetryToggle.setAttribute("aria-expanded", String(isOpen));
-      const chevron = telemetryToggle.querySelector(".telemetry-bar__chevron");
-      if (chevron) {
-        chevron.style.transform = isOpen ? "rotate(180deg)" : "rotate(0deg)";
-      }
     }
   }
 
@@ -64,20 +70,31 @@
     telemetryToggle.addEventListener("click", toggleTelemetry);
   }
 
-  // Suggestion Chips
-  document.querySelectorAll(".suggestion-chip").forEach((chip) => {
-    chip.addEventListener("click", () => {
-      const prompt = chip.getAttribute("data-prompt");
-      if (prompt && taskInputEl) {
-        taskInputEl.value = prompt;
-        composerEl.dispatchEvent(new Event("submit", { cancelable: true }));
+  // Clear / New Task Action
+  if (newChatBtn) {
+    newChatBtn.addEventListener("click", () => {
+      if (logEl) {
+        logEl.innerHTML = `
+          <div class="log__empty" id="logEmpty">
+            <div class="log__watermark" aria-hidden="true">
+              <svg width="84" height="84" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2L4 5.5V11c0 5.25 3.4 9.9 8 11 4.6-1.1 8-5.75 8-11V5.5L12 2Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+                <path d="M9 12.2l2 2 4-4.4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <p class="log__empty-hint">Type a task below to assist on this page.<br/>All sensitive data is redacted locally.</p>
+          </div>
+        `;
       }
+      setStatus("idle", "ready");
+      if (taskInputEl) taskInputEl.focus();
     });
-  });
+  }
 
   function appendLogLine(stage, detail, variant) {
-    if (logEmptyEl && logEmptyEl.parentNode) {
-      logEmptyEl.remove();
+    const emptyEl = document.getElementById("logEmpty");
+    if (emptyEl && emptyEl.parentNode) {
+      emptyEl.remove();
     }
 
     const meta = STAGE_META[stage] || DEFAULT_META;
@@ -102,7 +119,7 @@
     line.appendChild(text);
     logEl.appendChild(line);
 
-    // Auto scroll to latest response
+    // Auto scroll to latest row
     logEl.scrollTop = logEl.scrollHeight;
   }
 
@@ -117,10 +134,6 @@
     if (msg.type === "TIMINGS" && msg.timings) {
       const t = msg.timings;
       console.log("[SentinelAgent Telemetry Update]", t);
-
-      if (telemetryPillText) {
-        telemetryPillText.textContent = `⚡ ${(t.total / 1000).toFixed(2)}s total (${t.clientTotal}ms client)`;
-      }
 
       if (valCapture) valCapture.textContent = `${t.capture} ms`;
       if (valPerception) valPerception.textContent = `${t.perception} ms`;
@@ -169,7 +182,7 @@
     if (!taskGoal) return;
 
     console.log("[SentinelAgent Popup] Submitting task goal:", taskGoal);
-    appendLogLine("task", taskGoal, "task");
+    appendLogLine("task", `Task: "${taskGoal}"`, "task");
     setStatus("running", "processing…");
 
     if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {

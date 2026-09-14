@@ -7,52 +7,49 @@
 </head>
 <body>
   <div class="app">
-    <!-- Header -->
+    <!-- 1. Top Header Bar -->
     <header class="app__header">
       <div class="app__brand">
-        <div class="app__mark" aria-hidden="true">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 2L4 5.5V11c0 5.25 3.4 9.9 8 11 4.6-1.1 8-5.75 8-11V5.5L12 2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-            <path d="M9 12.2l2 2 4-4.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <div class="app__shield-icon" aria-hidden="true">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2L4 5.5V11c0 5.25 3.4 9.9 8 11 4.6-1.1 8-5.75 8-11V5.5L12 2Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            <path d="M9 12.2l2 2 4-4.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </div>
-        <div class="app__title-box">
-          <span class="app__name">SentinelAgent</span>
-          <span class="app__tagline">On-Device Privacy Vision</span>
+        <div class="app__header-titles">
+          <span class="app__title">SentinelAgent</span>
         </div>
       </div>
+
       <div class="app__header-actions">
         <span class="app__status" id="connectionStatus" data-state="idle">ready</span>
+        <button type="button" class="header-btn" id="newChatBtn" title="New task">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+        </button>
+        <button type="button" class="header-btn" id="telemetryToggle" title="View telemetry metrics" aria-expanded="false">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+          </svg>
+        </button>
       </div>
     </header>
 
-    <!-- Telemetry Bar & Expandable Drawer -->
-    <div class="telemetry-bar" id="telemetryBar">
-      <div class="telemetry-bar__summary">
-        <span class="telemetry-bar__icon">⚡</span>
-        <span class="telemetry-bar__text" id="telemetryPillText">Local Privacy Overhead: ~46ms (100% Private)</span>
-      </div>
-      <button type="button" class="telemetry-bar__toggle" id="telemetryToggle" aria-expanded="false" title="Toggle detailed latency metrics">
-        <span id="telemetryToggleText">Metrics</span>
-        <svg class="telemetry-bar__chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </button>
-    </div>
-
+    <!-- Collapsible Telemetry Metrics Panel -->
     <div class="telemetry-drawer" id="telemetryDrawer">
       <div class="telemetry-grid">
         <div class="telemetry-card">
           <span class="telemetry-card__label">📷 Screen Capture</span>
-          <span class="telemetry-card__value" id="valCapture">28 ms</span>
+          <span class="telemetry-card__value" id="valCapture">-- ms</span>
         </div>
         <div class="telemetry-card">
           <span class="telemetry-card__label">🔍 DOM Grounding</span>
-          <span class="telemetry-card__value" id="valPerception">4 ms</span>
+          <span class="telemetry-card__value" id="valPerception">-- ms</span>
         </div>
         <div class="telemetry-card">
           <span class="telemetry-card__label">🔒 Pixel Redaction</span>
-          <span class="telemetry-card__value" id="valRedact">14 ms</span>
+          <span class="telemetry-card__value" id="valRedact">-- ms</span>
         </div>
         <div class="telemetry-card">
           <span class="telemetry-card__label">📡 Cloud VLM</span>
@@ -63,12 +60,12 @@
           <span class="telemetry-card__value" id="valTotal">-- s</span>
         </div>
         <div class="telemetry-card">
-          <span class="telemetry-card__label">💾 Client RAM Heap</span>
-          <span class="telemetry-card__value" id="valMemory">14.2 MB</span>
+          <span class="telemetry-card__label">💾 Client Memory</span>
+          <span class="telemetry-card__value" id="valMemory">-- MB</span>
         </div>
         <div class="telemetry-card">
           <span class="telemetry-card__label">🛡️ Zero-Leakage</span>
-          <span class="telemetry-card__value text-emerald">100.0%</span>
+          <span class="telemetry-card__value text-teal">100.0%</span>
         </div>
         <div class="telemetry-card">
           <span class="telemetry-card__label">🎯 Elements</span>
@@ -77,43 +74,55 @@
       </div>
     </div>
 
-    <!-- Main Chat Feed -->
+    <!-- 2. Main Content Area (Activity Feed) -->
     <main class="log" id="log" aria-live="polite">
       <div class="log__empty" id="logEmpty">
-        <div class="log__empty-icon">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 13.8214 2.48697 15.5291 3.33782 17L2.5 21.5L7 20.6622C8.47087 21.513 10.1786 22 12 22Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        <div class="log__watermark" aria-hidden="true">
+          <svg width="84" height="84" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2L4 5.5V11c0 5.25 3.4 9.9 8 11 4.6-1.1 8-5.75 8-11V5.5L12 2Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+            <path d="M9 12.2l2 2 4-4.4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </div>
-        <h3>How can SentinelAgent help?</h3>
-        <p>Ask a question (e.g. <em>"what do you see"</em>) or provide a task (e.g. <em>"click sign in"</em>). All sensitive credentials and faces are scrubbed locally before processing.</p>
-        
-        <div class="quick-suggestions">
-          <button type="button" class="suggestion-chip" data-prompt="what do you see">👁️ "what do you see"</button>
-          <button type="button" class="suggestion-chip" data-prompt="click the sign in button">🖱️ "click sign in"</button>
-        </div>
+        <p class="log__empty-hint">Type a task below to assist on this page.<br/>All sensitive data is redacted locally.</p>
       </div>
     </main>
 
-    <!-- Composer Section -->
-    <div class="composer-wrapper">
+    <!-- 4. Context Pill & 3. Bottom Floating Input Bar -->
+    <div class="composer-container">
+      <div class="context-pill" id="contextPill">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/>
+          <path d="M3.6 9h16.8M3.6 15h16.8M12 3a14.5 14.5 0 0 1 0 18M12 3a14.5 14.5 0 0 0 0 18" stroke="currentColor" stroke-width="1.8"/>
+        </svg>
+        <span id="contextTitle">Current Tab</span>
+      </div>
+
       <form class="composer" id="composer">
         <input
           type="text"
           id="taskInput"
           class="composer__input"
-          placeholder="Ask or give a browser task…"
+          placeholder="Ask anything..."
           autocomplete="off"
         />
-        <button type="submit" class="composer__send" id="sendButton" aria-label="Send task">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
+
+        <div class="composer__actions">
+          <!-- Subtle icon buttons -->
+          <button type="button" class="composer__tool-btn" title="Screen vision active" tabindex="-1">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M4 8V6a2 2 0 0 1 2-2h2M4 16v2a2 2 0 0 0 2 2h2M16 4h2a2 2 0 0 1 2 2v2M16 20h2a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/>
+            </svg>
+          </button>
+
+          <!-- Solid Teal Send Button -->
+          <button type="submit" class="composer__send" id="sendButton" aria-label="Send task">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
       </form>
-      <div class="composer__footer-note">
-        <span class="shield-dot"></span> 100% On-Device Privacy Redaction Active
-      </div>
     </div>
   </div>
 
