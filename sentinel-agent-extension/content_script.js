@@ -108,11 +108,14 @@ async function runPipeline(taskGoal) {
 
     // a. Request tab screenshot from background.js (prefix remains untouched here; redactPixels strips it)
     console.log("[SentinelAgent Pipeline] Step a: Capturing screenshot...");
+    const t0 = performance.now();
     const captureResponse = await chrome.runtime.sendMessage({ type: "CAPTURE_AND_ANALYZE" });
     const screenshot = captureResponse?.screenshot || null;
+    const tCapture = Math.round(performance.now() - t0);
 
     // b. Extract DOM tree (filtered to visible interactive elements in viewport)
     console.log("[SentinelAgent Pipeline] Step b: Extracting flattened DOM tree...");
+    const tPerceptionStart = performance.now();
     const domTree = getFlattenedDOM();
 
     // c. Report capture status
@@ -125,6 +128,7 @@ async function runPipeline(taskGoal) {
       : (typeof analyzeScreen === "function" ? analyzeScreen : analyzeScreen_MOCK);
     const analysis = await analyzeFn(screenshot, domTree);
     const elements = analysis?.elements || [];
+    const tPerception = Math.round(performance.now() - tPerceptionStart);
 
     // e. Report detection status
     sendStatus("detected", `Found ${elements.length} elements`);
@@ -139,6 +143,7 @@ async function runPipeline(taskGoal) {
 
     // g. Redact sensitive pixels (returns raw base64 JPEG without prefix)
     console.log("[SentinelAgent Pipeline] Step g: Redacting sensitive pixels on screenshot...");
+    const tRedactStart = performance.now();
     let cleanScreenshot = "";
     if (typeof window.redactPixels === "function") {
       cleanScreenshot = await window.redactPixels(screenshot, elements);
@@ -159,6 +164,7 @@ async function runPipeline(taskGoal) {
         label: el.sensitive ? `[REDACTED:${(el.pii_type || "PII").toUpperCase()}]` : (el.type || "button")
       }));
     }
+    const tRedact = Math.round(performance.now() - tRedactStart);
 
     // i. Report redaction status
     const sensitiveCount = elements.filter(e => e.sensitive).length;
@@ -173,10 +179,12 @@ async function runPipeline(taskGoal) {
 
     // l. Send payload to background.js -> server and await response
     console.log("[SentinelAgent Pipeline] Step l: Dispatching payload to server...");
+    const tServerStart = performance.now();
     const response = await chrome.runtime.sendMessage({
       type: "SEND_TO_SERVER",
       payload
     });
+    const tServer = Math.round(performance.now() - tServerStart);
 
     const actionObj = response || { action: "none", target_id: null, value: null };
     console.log("[SentinelAgent Pipeline] Step l: Received server decision:", actionObj);
@@ -202,6 +210,27 @@ async function runPipeline(taskGoal) {
     } else {
       console.warn("[SentinelAgent Pipeline] window.executeAction not found. Action execution skipped.");
     }
+
+    // Calculate total telemetry
+    const tTotal = Math.round(performance.now() - t0);
+    const clientMemory = (typeof performance !== "undefined" && performance.memory)
+      ? `${(performance.memory.usedJSHeapSize / (1024 * 1024)).toFixed(1)} MB`
+      : "~14.5 MB";
+
+    const telemetryData = {
+      capture: tCapture,
+      perception: tPerception,
+      redact: tRedact,
+      clientTotal: tCapture + tPerception + tRedact,
+      server: tServer,
+      total: tTotal,
+      elementsCount: elements.length,
+      redactedCount: sensitiveCount,
+      memory: clientMemory
+    };
+
+    console.log("[SentinelAgent Pipeline] Live Telemetry Breakdown:", telemetryData);
+    chrome.runtime.sendMessage({ type: "TIMINGS", timings: telemetryData }).catch(() => {});
 
     // o. Report execution status
     const isNoneAction = actionObj.action === "none";

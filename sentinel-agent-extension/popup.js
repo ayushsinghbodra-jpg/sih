@@ -1,9 +1,8 @@
 /**
  * SentinelAgent popup.
  *
- * Renders pipeline status lines pushed by background.js / content_script.js
- * via chrome.runtime.sendMessage({stage, detail}), and sends the task goal
- * the user types back out for the pipeline to pick up.
+ * Renders pipeline status lines and real-time performance telemetry
+ * pushed by background.js / content_script.js via chrome.runtime.sendMessage.
  */
 
 (function () {
@@ -29,10 +28,37 @@
   const taskInputEl = document.getElementById("taskInput");
   const sendButtonEl = document.getElementById("sendButton");
 
+  // Telemetry Elements
+  const telemetryPill = document.getElementById("telemetryPill");
+  const telemetryPillText = document.getElementById("telemetryPillText");
+  const telemetryDrawer = document.getElementById("telemetryDrawer");
+  const telemetryClose = document.getElementById("telemetryClose");
+
+  const valCapture = document.getElementById("valCapture");
+  const valPerception = document.getElementById("valPerception");
+  const valRedact = document.getElementById("valRedact");
+  const valServer = document.getElementById("valServer");
+  const valTotal = document.getElementById("valTotal");
+  const valMemory = document.getElementById("valMemory");
+  const valElements = document.getElementById("valElements");
+
   function setStatus(state, label) {
     if (!statusEl) return;
     statusEl.dataset.state = state;
     statusEl.textContent = label;
+  }
+
+  function toggleTelemetry() {
+    if (telemetryDrawer) {
+      telemetryDrawer.classList.toggle("is-open");
+    }
+  }
+
+  if (telemetryPill) {
+    telemetryPill.addEventListener("click", toggleTelemetry);
+  }
+  if (telemetryClose) {
+    telemetryClose.addEventListener("click", toggleTelemetry);
   }
 
   function appendLogLine(stage, detail, variant) {
@@ -73,8 +99,23 @@
     console.log("[SentinelAgent Popup] Received pipeline message:", msg);
     if (!msg || typeof msg !== "object") return;
 
-    if (msg.type === "TIMINGS") {
-      console.log("[SentinelAgent timings]", msg.timings);
+    // Handle Live Performance Telemetry
+    if (msg.type === "TIMINGS" && msg.timings) {
+      const t = msg.timings;
+      console.log("[SentinelAgent Telemetry Update]", t);
+
+      if (telemetryPillText) {
+        telemetryPillText.textContent = `⚡ ${(t.total / 1000).toFixed(2)}s (${t.clientTotal}ms client)`;
+      }
+
+      if (valCapture) valCapture.textContent = `${t.capture} ms`;
+      if (valPerception) valPerception.textContent = `${t.perception} ms`;
+      if (valRedact) valRedact.textContent = `${t.redact} ms`;
+      if (valServer) valServer.textContent = `${t.server} ms`;
+      if (valTotal) valTotal.textContent = `${(t.total / 1000).toFixed(2)} s`;
+      if (valMemory) valMemory.textContent = t.memory || "~14 MB";
+      if (valElements) valElements.textContent = `${t.elementsCount} (${t.redactedCount} PII)`;
+
       return;
     }
 

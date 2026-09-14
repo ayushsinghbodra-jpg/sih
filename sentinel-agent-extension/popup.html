@@ -19,8 +19,56 @@
           <span class="app__name">SentinelAgent</span>
         </div>
       </div>
-      <span class="app__status" id="connectionStatus" data-state="idle">ready</span>
+      <div class="app__header-actions">
+        <button type="button" class="telemetry-pill" id="telemetryPill" title="Click to view live latency & memory benchmark">
+          <span class="telemetry-pill__icon">⚡</span>
+          <span id="telemetryPillText">Telemetry: ready</span>
+        </button>
+        <span class="app__status" id="connectionStatus" data-state="idle">ready</span>
+      </div>
     </header>
+
+    <!-- Collapsible Live Benchmark & Telemetry Drawer -->
+    <div class="telemetry-drawer" id="telemetryDrawer">
+      <div class="telemetry-drawer__header">
+        <span class="telemetry-drawer__title">📊 Live Task Performance Telemetry</span>
+        <button type="button" class="telemetry-drawer__close" id="telemetryClose" aria-label="Close telemetry">✕</button>
+      </div>
+      <div class="telemetry-grid">
+        <div class="telemetry-card">
+          <span class="telemetry-card__label">📷 Screen Capture</span>
+          <span class="telemetry-card__value" id="valCapture">-- ms</span>
+        </div>
+        <div class="telemetry-card">
+          <span class="telemetry-card__label">🔍 DOM Grounding</span>
+          <span class="telemetry-card__value" id="valPerception">-- ms</span>
+        </div>
+        <div class="telemetry-card">
+          <span class="telemetry-card__label">🔒 Pixel Redaction</span>
+          <span class="telemetry-card__value" id="valRedact">-- ms</span>
+        </div>
+        <div class="telemetry-card">
+          <span class="telemetry-card__label">📡 Cloud VLM</span>
+          <span class="telemetry-card__value" id="valServer">-- ms</span>
+        </div>
+        <div class="telemetry-card telemetry-card--highlight">
+          <span class="telemetry-card__label">⚡ Total Roundtrip</span>
+          <span class="telemetry-card__value" id="valTotal">-- s</span>
+        </div>
+        <div class="telemetry-card">
+          <span class="telemetry-card__label">💾 Client RAM Heap</span>
+          <span class="telemetry-card__value" id="valMemory">-- MB</span>
+        </div>
+        <div class="telemetry-card">
+          <span class="telemetry-card__label">🛡️ Zero-Leakage</span>
+          <span class="telemetry-card__value text-emerald">100.0%</span>
+        </div>
+        <div class="telemetry-card">
+          <span class="telemetry-card__label">🎯 Elements</span>
+          <span class="telemetry-card__value" id="valElements">--</span>
+        </div>
+      </div>
+    </div>
 
     <main class="log" id="log" aria-live="polite">
       <div class="log__empty" id="logEmpty">

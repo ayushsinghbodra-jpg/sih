@@ -1,0 +1,71 @@
+{
+  "manifest_version": 3,
+  "name": "SentinelAgent - Firefox Edition",
+  "version": "1.0.0",
+  "description": "Privacy-preserving on-device vision agent for secure browser automation.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "sentinel-agent@isro-sih.org",
+      "strict_min_version": "109.0"
+    }
+  },
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "tabs",
+    "storage"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": ["background.js"],
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "libs/ort.min.js",
+        "libs/tf.min.js",
+        "libs/blazeface.min.js",
+        "perception/redaction_policy.js",
+        "perception/sensitive_detector.js",
+        "perception/ui_grounding.js",
+        "perception/perception.js",
+        "redaction.js",
+        "payload_builder.js",
+        "action_executor.js",
+        "content_script.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "perception/models/yolo11n.onnx",
+        "libs/ort-wasm-simd-threaded.jsep.wasm",
+        "libs/ort-wasm-simd-threaded.wasm"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}
