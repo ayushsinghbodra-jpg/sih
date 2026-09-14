@@ -3,6 +3,7 @@ import re
 from typing import Any, Dict
 
 FALLBACK_ACTION: Dict[str, Any] = {
+    "thought": "No actionable operation decided.",
     "action": "none",
     "target_id": None,
     "value": None
@@ -22,6 +23,7 @@ def parse_action(raw_text: str) -> Dict[str, Any]:
         parsed = json.loads(raw_text.strip())
         if isinstance(parsed, dict) and "action" in parsed:
             return {
+                "thought": str(parsed.get("thought", "")),
                 "action": str(parsed.get("action", "none")),
                 "target_id": parsed.get("target_id"),
                 "value": parsed.get("value")
@@ -37,6 +39,7 @@ def parse_action(raw_text: str) -> Dict[str, Any]:
             parsed = json.loads(extracted)
             if isinstance(parsed, dict) and "action" in parsed:
                 return {
+                    "thought": str(parsed.get("thought", "")),
                     "action": str(parsed.get("action", "none")),
                     "target_id": parsed.get("target_id"),
                     "value": parsed.get("value")

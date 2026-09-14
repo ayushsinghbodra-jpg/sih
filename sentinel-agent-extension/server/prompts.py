@@ -17,6 +17,7 @@ Instructions:
 
 The JSON response must strictly match this exact schema:
 {
+  "thought": "<brief 1-2 sentence summary of what you see on the screen and what action you decided to take>",
   "action": "click" | "type" | "scroll" | "none",
   "target_id": "<element id from the elements list, or null>",
   "value": "<string to type, or null>"

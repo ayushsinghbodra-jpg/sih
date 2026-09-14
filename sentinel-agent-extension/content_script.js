@@ -182,7 +182,10 @@ async function runPipeline(taskGoal) {
     console.log("[SentinelAgent Pipeline] Step l: Received server decision:", actionObj);
 
     // m. Report server decision status (stage "server" maps to brain icon in popup UI)
-    sendStatus("server", `${actionObj.action} ${actionObj.target_id || ""}`.trim());
+    const serverDetail = actionObj.thought
+      ? actionObj.thought
+      : (`${actionObj.action} ${actionObj.target_id || ""}`.trim() || "No action needed");
+    sendStatus("server", serverDetail);
 
     // Record step in history
     stepHistory.push({
