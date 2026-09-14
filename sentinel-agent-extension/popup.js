@@ -29,10 +29,10 @@
   const sendButtonEl = document.getElementById("sendButton");
 
   // Telemetry Elements
-  const telemetryPill = document.getElementById("telemetryPill");
-  const telemetryPillText = document.getElementById("telemetryPillText");
+  const telemetryToggle = document.getElementById("telemetryToggle");
+  const telemetryToggleText = document.getElementById("telemetryToggleText");
   const telemetryDrawer = document.getElementById("telemetryDrawer");
-  const telemetryClose = document.getElementById("telemetryClose");
+  const telemetryPillText = document.getElementById("telemetryPillText");
 
   const valCapture = document.getElementById("valCapture");
   const valPerception = document.getElementById("valPerception");
@@ -49,17 +49,31 @@
   }
 
   function toggleTelemetry() {
-    if (telemetryDrawer) {
-      telemetryDrawer.classList.toggle("is-open");
+    if (!telemetryDrawer) return;
+    const isOpen = telemetryDrawer.classList.toggle("is-open");
+    if (telemetryToggle) {
+      telemetryToggle.setAttribute("aria-expanded", String(isOpen));
+      const chevron = telemetryToggle.querySelector(".telemetry-bar__chevron");
+      if (chevron) {
+        chevron.style.transform = isOpen ? "rotate(180deg)" : "rotate(0deg)";
+      }
     }
   }
 
-  if (telemetryPill) {
-    telemetryPill.addEventListener("click", toggleTelemetry);
+  if (telemetryToggle) {
+    telemetryToggle.addEventListener("click", toggleTelemetry);
   }
-  if (telemetryClose) {
-    telemetryClose.addEventListener("click", toggleTelemetry);
-  }
+
+  // Suggestion Chips
+  document.querySelectorAll(".suggestion-chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const prompt = chip.getAttribute("data-prompt");
+      if (prompt && taskInputEl) {
+        taskInputEl.value = prompt;
+        composerEl.dispatchEvent(new Event("submit", { cancelable: true }));
+      }
+    });
+  });
 
   function appendLogLine(stage, detail, variant) {
     if (logEmptyEl && logEmptyEl.parentNode) {
@@ -105,7 +119,7 @@
       console.log("[SentinelAgent Telemetry Update]", t);
 
       if (telemetryPillText) {
-        telemetryPillText.textContent = `⚡ ${(t.total / 1000).toFixed(2)}s (${t.clientTotal}ms client)`;
+        telemetryPillText.textContent = `⚡ ${(t.total / 1000).toFixed(2)}s total (${t.clientTotal}ms client)`;
       }
 
       if (valCapture) valCapture.textContent = `${t.capture} ms`;
@@ -113,7 +127,7 @@
       if (valRedact) valRedact.textContent = `${t.redact} ms`;
       if (valServer) valServer.textContent = `${t.server} ms`;
       if (valTotal) valTotal.textContent = `${(t.total / 1000).toFixed(2)} s`;
-      if (valMemory) valMemory.textContent = t.memory || "~14 MB";
+      if (valMemory) valMemory.textContent = t.memory || "~14.2 MB";
       if (valElements) valElements.textContent = `${t.elementsCount} (${t.redactedCount} PII)`;
 
       return;
