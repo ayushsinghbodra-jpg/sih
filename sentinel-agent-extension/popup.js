@@ -70,6 +70,7 @@
   }
 
   function handlePipelineMessage(msg) {
+    console.log("[SentinelAgent Popup] Received pipeline message:", msg);
     if (!msg || typeof msg !== "object") return;
 
     // Timing payloads (Stage 6) are handled separately from chat-log
@@ -96,6 +97,7 @@
   // a plain browser tab (Stage 3.4's fallback testing method) — guard
   // so that path doesn't throw.
   if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
+    console.log("[SentinelAgent Popup] chrome.runtime.onMessage listener attached.");
     chrome.runtime.onMessage.addListener(handlePipelineMessage);
   } else {
     console.warn(
@@ -113,11 +115,18 @@
     const taskGoal = taskInputEl.value.trim();
     if (!taskGoal) return;
 
+    console.log("[SentinelAgent Popup] Submitting task goal:", taskGoal);
     appendLogLine("task", `Task: "${taskGoal}"`, "task");
     setStatus("running", "starting…");
 
     if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
-      chrome.runtime.sendMessage({ type: "START_TASK", task_goal: taskGoal });
+      console.log("[SentinelAgent Popup] Dispatching START_TASK to background worker:", { type: "START_TASK", task_goal: taskGoal });
+      chrome.runtime.sendMessage({ type: "START_TASK", task_goal: taskGoal, taskGoal: taskGoal }, (response) => {
+        console.log("[SentinelAgent Popup] Background response acknowledging START_TASK:", response);
+        if (chrome.runtime.lastError) {
+          console.warn("[SentinelAgent Popup] Error dispatching to background:", chrome.runtime.lastError.message);
+        }
+      });
     } else {
       console.log("[SentinelAgent] (standalone) would send START_TASK:", taskGoal);
     }

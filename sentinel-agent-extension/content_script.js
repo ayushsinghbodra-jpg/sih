@@ -45,20 +45,27 @@ async function analyzeScreen_MOCK(screenshotBase64, domTree) {
 
 /**
  * 2. Lightweight DOM Tree Extractor
- * Walks document.body and returns simplified metadata for visible interactive nodes.
+ * Walks document.body and returns simplified metadata for visible interactive nodes in current viewport.
  */
 function getFlattenedDOM() {
-  const interactiveSelector = "a, button, input, textarea, select, [role='button'], [role='link'], [role='textbox'], [tabindex]:not([tabindex='-1'])";
+  const interactiveSelector = "button, input, select, textarea, a[href], [role='button'], [role='link'], [role='textbox']";
   const nodes = Array.from(document.body.querySelectorAll(interactiveSelector));
   const flattened = [];
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 1920;
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 1080;
 
   nodes.forEach((el, index) => {
     const rect = el.getBoundingClientRect();
-    const isVisible = rect.width > 0 && rect.height > 0 &&
-      window.getComputedStyle(el).visibility !== "hidden" &&
-      window.getComputedStyle(el).display !== "none";
+    const style = window.getComputedStyle(el);
+    const isVisible = rect.width > 4 && rect.height > 4 &&
+      style.visibility !== "hidden" &&
+      style.display !== "none" &&
+      style.opacity !== "0";
 
-    if (isVisible) {
+    const inViewport = rect.top < viewportHeight && rect.bottom > 0 &&
+                       rect.left < viewportWidth && rect.right > 0;
+
+    if (isVisible && inViewport) {
       flattened.push({
         id: el.id || `node_${index}`,
         tag: el.tagName.toLowerCase(),
@@ -69,7 +76,8 @@ function getFlattenedDOM() {
     }
   });
 
-  return flattened;
+  // Limit to top 35 visible interactive elements to optimize client latency and model focus
+  return flattened.slice(0, 35);
 }
 
 /**
@@ -103,17 +111,20 @@ async function runPipeline(taskGoal) {
     const captureResponse = await chrome.runtime.sendMessage({ type: "CAPTURE_AND_ANALYZE" });
     const screenshot = captureResponse?.screenshot || null;
 
-    // b. Extract DOM tree
+    // b. Extract DOM tree (filtered to visible interactive elements in viewport)
     console.log("[SentinelAgent Pipeline] Step b: Extracting flattened DOM tree...");
     const domTree = getFlattenedDOM();
 
     // c. Report capture status
     sendStatus("captured", "Captured screen");
 
-    // d. Perception & element detection (MOCK)
+    // d. Perception & element detection (Real Person A module with mock fallback)
     console.log("[SentinelAgent Pipeline] Step d: Running perception analysis...");
-    const analysis = await analyzeScreen_MOCK(screenshot, domTree);
-    const elements = analysis.elements || [];
+    const analyzeFn = (typeof window !== "undefined" && typeof window.analyzeScreen === "function")
+      ? window.analyzeScreen
+      : (typeof analyzeScreen === "function" ? analyzeScreen : analyzeScreen_MOCK);
+    const analysis = await analyzeFn(screenshot, domTree);
+    const elements = analysis?.elements || [];
 
     // e. Report detection status
     sendStatus("detected", `Found ${elements.length} elements`);
@@ -150,7 +161,8 @@ async function runPipeline(taskGoal) {
     }
 
     // i. Report redaction status
-    sendStatus("redacted", "Redacted: password, email");
+    const sensitiveCount = elements.filter(e => e.sensitive).length;
+    sendStatus("redacted", sensitiveCount > 0 ? `Redacted ${sensitiveCount} sensitive fields` : "No sensitive PII found");
 
     // j. Construct payload matching exact server contract (NO bbox, sensitive, or pii_type in elements)
     const payload = window.buildPayload(taskGoal, cleanScreenshot, serverElements, stepHistory);
@@ -197,11 +209,8 @@ async function runPipeline(taskGoal) {
     sendStatus("error", error.message || "Pipeline execution failed");
   } finally {
     isProcessing = false;
-    if (pendingRerun) {
-      console.log("[SentinelAgent ContentScript] Executing queued pending rerun for goal:", currentTaskGoal);
-      pendingRerun = false;
-      runPipeline(currentTaskGoal);
-    }
+    currentTaskGoal = null; // Clear active goal after single run to prevent mutation loop
+    pendingRerun = false;
   }
 }
 

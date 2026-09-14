@@ -98,6 +98,11 @@ window.executeAction = async function(actionPayload) {
           return false;
         }
 
+        if (!node.isConnected) {
+          console.warn(`[SentinelAgent ActionExecutor] Stale reference detected: Click target "${target_id}" is no longer connected to the DOM (page re-rendered or mutated). Aborting action.`);
+          return false;
+        }
+
         node.scrollIntoView({ behavior: "smooth", block: "center" });
         node.focus();
         node.click();
@@ -114,6 +119,11 @@ window.executeAction = async function(actionPayload) {
         const node = elementRegistry.get(target_id);
         if (!node) {
           console.warn(`[SentinelAgent ActionExecutor] Type target "${target_id}" not found in registry. Safe no-op.`);
+          return false;
+        }
+
+        if (!node.isConnected) {
+          console.warn(`[SentinelAgent ActionExecutor] Stale reference detected: Type target "${target_id}" is no longer connected to the DOM (page re-rendered or mutated). Aborting action.`);
           return false;
         }
 
