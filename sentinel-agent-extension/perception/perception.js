@@ -74,6 +74,7 @@ class PerceptionEngine {
         id: el.id,
         type: el.type,
         bbox: el.bbox,
+        text: el.text || el.label || el.innerText || "",
         sensitive: el.sensitive,
         ...(el.pii_type ? { pii_type: el.pii_type } : {})
       })),

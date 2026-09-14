@@ -11,31 +11,69 @@ async function launchAssistant(tab) {
     return;
   }
 
+  // 1. First attempt: Direct execution in the page context
   try {
-    const res = await chrome.tabs.sendMessage(tab.id, { type: "TOGGLE_SIDEBAR" });
-    console.log("[SentinelAgent Background] In-page sidebar toggled:", res);
-  } catch (err) {
-    console.warn("[SentinelAgent Background] Content script not connected in tab " + tab.id + ". Injecting dynamically...", err);
-    try {
-      await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        files: [
-          "perception/redaction_policy.js",
-          "perception/sensitive_detector.js",
-          "perception/ui_grounding.js",
-          "perception/perception.js",
-          "redaction.js",
-          "payload_builder.js",
-          "action_executor.js",
-          "content_script.js"
-        ]
-      });
-      setTimeout(() => {
-        chrome.tabs.sendMessage(tab.id, { type: "TOGGLE_SIDEBAR" }).catch(console.error);
-      }, 120);
-    } catch (injErr) {
-      console.error("[SentinelAgent Background] Failed to inject scripts into tab:", injErr);
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: () => {
+        if (typeof window.toggleSentinelSidebar === "function") {
+          window.toggleSentinelSidebar();
+          return true;
+        } else {
+          window.dispatchEvent(new CustomEvent("SENTINEL_TOGGLE_REQUEST"));
+          return false;
+        }
+      }
+    });
+
+    if (results && results[0]?.result === true) {
+      console.log("[SentinelAgent Background] Sidebar toggled directly via executeScript.");
+      return;
     }
+  } catch (err) {
+    console.warn("[SentinelAgent Background] Script execution attempt 1 had error:", err);
+  }
+
+  // 2. Second attempt: Message port
+  try {
+    await chrome.tabs.sendMessage(tab.id, { type: "TOGGLE_SIDEBAR" });
+    console.log("[SentinelAgent Background] Sidebar toggled via sendMessage.");
+    return;
+  } catch (err) {
+    console.warn("[SentinelAgent Background] Tab not yet injected. Injecting all extension scripts into tab " + tab.id + "...", err);
+  }
+
+  // 3. Fallback: Full script re-injection
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      files: [
+        "perception/redaction_policy.js",
+        "perception/sensitive_detector.js",
+        "perception/ui_grounding.js",
+        "perception/perception.js",
+        "redaction.js",
+        "payload_builder.js",
+        "action_executor.js",
+        "content_script.js"
+      ]
+    });
+    setTimeout(async () => {
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: () => {
+            if (typeof window.toggleSentinelSidebar === "function") {
+              window.toggleSentinelSidebar(true);
+            }
+          }
+        });
+      } catch (e) {
+        chrome.tabs.sendMessage(tab.id, { type: "TOGGLE_SIDEBAR" }).catch(console.error);
+      }
+    }, 100);
+  } catch (injErr) {
+    console.error("[SentinelAgent Background] Failed to inject scripts into tab:", injErr);
   }
 }
 
@@ -110,6 +148,34 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
     );
     return true; // Keep channel open for async response
+  }
+
+  // 1.5. NAVIGATE_TAB: Execute tab navigation from agent action
+  if (message.type === "NAVIGATE_TAB") {
+    let targetUrl = message.url || "";
+    if (targetUrl && !targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
+      targetUrl = "https://" + targetUrl;
+    }
+    console.log("[SentinelAgent Background] Handling NAVIGATE_TAB to:", targetUrl);
+
+    const tabId = sender.tab ? sender.tab.id : null;
+    if (tabId) {
+      chrome.tabs.update(tabId, { url: targetUrl }, (tab) => {
+        sendResponse({ success: true, url: targetUrl });
+      });
+      return true;
+    } else {
+      chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
+        if (tabs && tabs[0]?.id) {
+          chrome.tabs.update(tabs[0].id, { url: targetUrl }, () => {
+            sendResponse({ success: true, url: targetUrl });
+          });
+        } else {
+          sendResponse({ success: false, error: "No active tab found" });
+        }
+      });
+      return true;
+    }
   }
 
   // 2. SEND_TO_SERVER: Send payload to backend server

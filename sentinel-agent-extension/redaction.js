@@ -93,13 +93,69 @@ window.redactLabels = function(elements, domRegistry) {
       label = `[REDACTED:${piiTag}]`;
     } else {
       const domNode = domRegistry?.get?.(el.id);
-      const innerText = domNode?.innerText?.trim();
-      const ariaLabel = domNode?.getAttribute?.("aria-label")?.trim();
+      
+      // 1. Resolve aria-labelledby (Google Forms question title resolution)
+      let ariaLabelledByText = "";
+      const ariaLabelledBy = domNode?.getAttribute?.("aria-labelledby");
+      if (ariaLabelledBy) {
+        const ids = ariaLabelledBy.trim().split(/\s+/);
+        const texts = ids.map(id => document.getElementById(id)?.innerText?.trim()).filter(Boolean);
+        if (texts.length > 0) {
+          ariaLabelledByText = texts.join(" ").replace(/\s+/g, " ");
+        }
+      }
 
-      if (innerText) {
-        label = innerText.slice(0, 40);
-      } else if (ariaLabel) {
-        label = ariaLabel.slice(0, 40);
+      // 2. Multi-layer title & label resolution
+      const titleAttr = domNode?.getAttribute?.("title")?.trim();
+      const ariaLabel = domNode?.getAttribute?.("aria-label")?.trim();
+      const dataValue = domNode?.getAttribute?.("data-value")?.trim();
+      const nestedTitle = domNode?.querySelector?.("#video-title, [id*='title'], h1, h2, h3, h4, .yt-core-attributed-string")?.innerText?.trim();
+      const innerText = domNode?.innerText?.trim();
+      const placeholder = domNode?.getAttribute?.("placeholder")?.trim();
+      const val = (domNode?.tagName === "INPUT" || domNode?.tagName === "TEXTAREA") ? domNode?.value?.trim() : "";
+      const preText = el.text || el.label || el.innerText || "";
+
+      // 3. Question container title for form inputs & radio options
+      let questionTitle = "";
+      if (domNode) {
+        const role = domNode.getAttribute?.("role");
+        const isRadioOrCheck = role === "radio" || role === "checkbox" || domNode.type === "radio" || domNode.type === "checkbox";
+        const group = domNode.closest?.('[role="radiogroup"], [role="listitem"], .Qr7Oae, .geS5n, .m2, .form-group, fieldset, [jsmodel]');
+        if (group) {
+          const qText = group.querySelector?.('[role="heading"], .M7eMe, legend, .exportLabel, .title, .label, h1, h2, h3, h4, h5, .HoPnR')?.innerText?.trim();
+          if (qText) {
+            const optText = ariaLabel || dataValue || innerText;
+            if (isRadioOrCheck && optText) {
+              questionTitle = `${qText}: ${optText}`;
+            } else if (!isRadioOrCheck) {
+              questionTitle = qText;
+            }
+          }
+        }
+      }
+
+      // 4. YouTube specific renderer title
+      let rendererTitle = "";
+      if (domNode && (!titleAttr && !nestedTitle && (!innerText || innerText.length < 5))) {
+        const videoRenderer = domNode.closest?.("ytd-rich-item-renderer, ytd-video-renderer, ytd-grid-video-renderer, ytd-compact-video-renderer, article");
+        if (videoRenderer) {
+          rendererTitle = videoRenderer.querySelector?.("#video-title, [id*='title'], h3")?.getAttribute?.("title") ||
+                          videoRenderer.querySelector?.("#video-title, [id*='title'], h3")?.innerText?.trim() || "";
+        }
+      }
+
+      // 5. Associated <label> tag
+      let forLabel = "";
+      if (domNode?.labels && domNode.labels.length > 0) {
+        forLabel = Array.from(domNode.labels).map(l => l.innerText.trim()).filter(Boolean).join(" ");
+      } else if (domNode?.id) {
+        forLabel = document.querySelector(`label[for="${domNode.id}"]`)?.innerText?.trim() || "";
+      }
+
+      const resolved = ariaLabelledByText || questionTitle || forLabel || titleAttr || rendererTitle || nestedTitle || ariaLabel || innerText || placeholder || val || preText;
+
+      if (resolved) {
+        label = resolved.replace(/\s+/g, " ").slice(0, 120);
       } else {
         label = el.type || "button";
       }

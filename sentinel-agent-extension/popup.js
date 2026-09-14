@@ -97,7 +97,18 @@
   }
 
   // Storage Key for Persistent Chat History
+  // Storage Key for Persistent Chat History
   const CHAT_HISTORY_KEY = "sentinel_chat_history";
+
+  function escapeHTML(str) {
+    if (!str) return "";
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
 
   // Load and Restore Chat History on Startup
   function loadChatHistory() {
@@ -108,19 +119,24 @@
           const emptyEl = document.getElementById("logEmpty");
           if (emptyEl) emptyEl.remove();
           history.forEach((item) => {
-            renderLogLine(item.stage, item.detail, item.variant, false);
+            if (item.role === "user") {
+              renderUserMessage(item.text, false);
+            } else if (item.role === "ai") {
+              renderAIMessage(item.text, item.actionData, false);
+            } else if (item.role === "error") {
+              renderErrorMessage(item.text, false);
+            }
           });
         }
       });
     }
   }
 
-  function saveChatHistoryItem(stage, detail, variant) {
+  function saveChatHistoryItem(role, text, actionData = null) {
     if (typeof chrome !== "undefined" && chrome.storage?.local) {
       chrome.storage.local.get([CHAT_HISTORY_KEY], (res) => {
         const history = (res && res[CHAT_HISTORY_KEY]) || [];
-        history.push({ stage, detail, variant, timestamp: Date.now() });
-        // Keep last 60 entries
+        history.push({ role, text, actionData, timestamp: Date.now() });
         const trimmed = history.slice(-60);
         chrome.storage.local.set({ [CHAT_HISTORY_KEY]: trimmed });
       });
@@ -151,7 +167,7 @@
     });
   }
 
-  // Thinking Animation Management
+  // Thinking Animation Management (LEFT-ALIGNED)
   function showThinking(subtext = "Analyzing visual structure & privacy...") {
     const emptyEl = document.getElementById("logEmpty");
     if (emptyEl) emptyEl.remove();
@@ -177,7 +193,7 @@
               <span class="thinking-dot"></span>
             </span>
           </div>
-          <span class="thinking-subtext" id="thinkingSubtext">${subtext}</span>
+          <span class="thinking-subtext" id="thinkingSubtext">${escapeHTML(subtext)}</span>
         </div>
       `;
       logEl.appendChild(thinkingCard);
@@ -195,44 +211,90 @@
     }
   }
 
-  function renderLogLine(stage, detail, variant, persist = true) {
+  // Render User Message (RIGHT-ALIGNED)
+  function renderUserMessage(text, persist = true) {
     const emptyEl = document.getElementById("logEmpty");
     if (emptyEl) emptyEl.remove();
 
-    // If active thinking card exists, insert before it or clean it up
-    const thinkingCard = document.getElementById("thinkingCard");
+    const bubble = document.createElement("div");
+    bubble.className = "chat-bubble--user";
+    bubble.textContent = text;
 
-    const meta = STAGE_META[stage] || DEFAULT_META;
-    const line = document.createElement("div");
-    line.className = "log-line";
-
-    if (variant) {
-      line.classList.add(`log-line--${variant}`);
-    } else if (meta.className) {
-      line.classList.add(meta.className);
-    }
-
-    const icon = document.createElement("span");
-    icon.className = "log-line__icon";
-    icon.textContent = meta.icon;
-
-    const text = document.createElement("span");
-    text.className = "log-line__detail";
-    text.textContent = detail || "";
-
-    line.appendChild(icon);
-    line.appendChild(text);
-
-    if (thinkingCard && stage !== "task") {
-      logEl.insertBefore(line, thinkingCard);
-    } else {
-      logEl.appendChild(line);
-    }
-
+    logEl.appendChild(bubble);
     logEl.scrollTop = logEl.scrollHeight;
 
     if (persist) {
-      saveChatHistoryItem(stage, detail, variant);
+      saveChatHistoryItem("user", text);
+    }
+  }
+
+  // Render AI Response (LEFT-ALIGNED)
+  function renderAIMessage(text, actionData = null, persist = true) {
+    const emptyEl = document.getElementById("logEmpty");
+    if (emptyEl) emptyEl.remove();
+
+    hideThinking();
+
+    const container = document.createElement("div");
+    container.className = "chat-bubble--ai";
+
+    const textEl = document.createElement("div");
+    textEl.className = "chat-bubble--ai__text";
+    textEl.textContent = text;
+    container.appendChild(textEl);
+
+    if (actionData) {
+      const pill = document.createElement("div");
+      pill.className = "action-pill";
+      pill.innerHTML = `<span>⚡</span> <span>${escapeHTML(actionData)}</span>`;
+      container.appendChild(pill);
+    }
+
+    const actionsBar = document.createElement("div");
+    actionsBar.className = "chat-bubble--ai__actions";
+    actionsBar.innerHTML = `
+      <button type="button" class="chat-action-btn" title="Copy response">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        </svg>
+      </button>
+    `;
+    const copyBtn = actionsBar.querySelector(".chat-action-btn");
+    if (copyBtn) {
+      copyBtn.addEventListener("click", () => {
+        navigator.clipboard.writeText(text).then(() => {
+          copyBtn.style.color = "var(--teal-primary)";
+          setTimeout(() => { copyBtn.style.color = ""; }, 1200);
+        });
+      });
+    }
+    container.appendChild(actionsBar);
+
+    logEl.appendChild(container);
+    logEl.scrollTop = logEl.scrollHeight;
+
+    if (persist) {
+      saveChatHistoryItem("ai", text, actionData);
+    }
+  }
+
+  // Render Error Message (LEFT-ALIGNED)
+  function renderErrorMessage(text, persist = true) {
+    const emptyEl = document.getElementById("logEmpty");
+    if (emptyEl) emptyEl.remove();
+
+    hideThinking();
+
+    const errBox = document.createElement("div");
+    errBox.className = "chat-bubble--error";
+    errBox.textContent = `⚠️ ${text}`;
+
+    logEl.appendChild(errBox);
+    logEl.scrollTop = logEl.scrollHeight;
+
+    if (persist) {
+      saveChatHistoryItem("error", text);
     }
   }
 
@@ -240,12 +302,13 @@
   let lastMessageTime = 0;
 
   function handlePipelineMessage(msg) {
-    console.log("[SentinelAgent Popup] Received pipeline message:", msg);
     if (!msg || typeof msg !== "object") return;
 
     // Handle Live Performance Telemetry
     if (msg.type === "TIMINGS" && msg.timings) {
       const t = msg.timings;
+      console.log(`[SentinelAgent Telemetry] Total: ${t.total}ms | Capture: ${t.capture}ms | Perception: ${t.perception}ms | Redact: ${t.redact}ms | Server: ${t.server}ms | Memory: ${t.memory || "~14MB"}`);
+
       if (valCapture) valCapture.textContent = `${t.capture} ms`;
       if (valPerception) valPerception.textContent = `${t.perception} ms`;
       if (valRedact) valRedact.textContent = `${t.redact} ms`;
@@ -258,6 +321,9 @@
 
     if (!msg.stage) return;
 
+    // Terminal / Console logging for all pipeline stages
+    console.log(`[SentinelAgent Pipeline] [${msg.stage.toUpperCase()}]: ${msg.detail}`);
+
     // Deduplication guard
     const now = Date.now();
     const key = `${msg.stage}::${msg.detail}`;
@@ -267,30 +333,25 @@
     lastMessageKey = key;
     lastMessageTime = now;
 
-    // Update thinking animation state or finalize response
+    // In the UI: Intermediate stages ONLY update the thinking card subtext (NO chat spam!)
     if (msg.stage === "captured") {
-      showThinking("Captured screenshot. Extracting interactive elements...");
-      renderLogLine(msg.stage, msg.detail);
+      showThinking("Captured screenshot. Grounding interactive elements...");
     } else if (msg.stage === "detected") {
       showThinking("Running local PII detectors & policy checks...");
-      renderLogLine(msg.stage, msg.detail);
     } else if (msg.stage === "redacted") {
       showThinking("Redacted private data locally. Consulting AI model...");
-      renderLogLine(msg.stage, msg.detail);
     } else if (msg.stage === "server" || msg.stage === "thought") {
-      hideThinking();
-      renderLogLine(msg.stage, msg.detail, "thought");
+      renderAIMessage(msg.detail);
       setStatus("done", "ready");
     } else if (msg.stage === "executed") {
-      hideThinking();
-      renderLogLine(msg.stage, msg.detail, "executed");
+      // If an action was executed and no thought was rendered, show the action confirmation
+      if (msg.detail) {
+        renderAIMessage("Action executed on page.", msg.detail);
+      }
       setStatus("done", "ready");
     } else if (msg.stage === "error") {
-      hideThinking();
-      renderLogLine(msg.stage, msg.detail, "error");
+      renderErrorMessage(msg.detail);
       setStatus("error", "server error");
-    } else {
-      renderLogLine(msg.stage, msg.detail);
     }
   }
 
@@ -305,17 +366,16 @@
     const taskGoal = taskInputEl.value.trim();
     if (!taskGoal) return;
 
-    console.log("[SentinelAgent Popup] Submitting task goal:", taskGoal);
-    renderLogLine("task", `You: "${taskGoal}"`, "task");
-    showThinking("Capturing visual context & planning action...");
+    console.log(`[SentinelAgent Pipeline] 🚀 Submitting task: "${taskGoal}"`);
+    renderUserMessage(taskGoal);
+    showThinking("Analyzing page & privacy boundaries...");
     setStatus("running", "reasoning…");
 
     if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
       chrome.runtime.sendMessage({ type: "START_TASK", task_goal: taskGoal, taskGoal: taskGoal }, (response) => {
         if (chrome.runtime.lastError) {
           console.warn("[SentinelAgent Popup] Error dispatching to background:", chrome.runtime.lastError.message);
-          hideThinking();
-          renderLogLine("error", "Could not reach background worker. Please refresh.", "error");
+          renderErrorMessage("Could not connect to active page tab. Please refresh the page.");
           setStatus("error", "error");
         }
       });

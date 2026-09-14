@@ -476,7 +476,15 @@ class UIGroundingEngine {
   }
 
   _extractFromLiveDOM(results) {
-    const selectors = 'button, input, select, textarea, a[href], [role="button"], [role="link"], [role="input"]';
+    const selectors = [
+      'button', 'input', 'select', 'textarea', 'a[href]',
+      '[role="button"]', '[role="link"]', '[role="textbox"]', '[role="checkbox"]',
+      '[role="radio"]', '[role="switch"]', '[role="tab"]', '[role="option"]',
+      '[role="combobox"]', '[role="listbox"]', '[role="menuitem"]',
+      '[contenteditable="true"]', '[tabindex]:not([tabindex="-1"])',
+      'ytd-rich-item-renderer a', 'ytd-video-renderer a', 'ytd-grid-video-renderer a',
+      '#video-title', 'a#video-title-link', 'a#thumbnail'
+    ].join(', ');
     const nodes = Array.from(document.querySelectorAll(selectors));
 
     nodes.forEach((el, index) => {
@@ -486,6 +494,28 @@ class UIGroundingEngine {
       const tagName = el.tagName.toUpperCase();
       const attrs = {};
       Array.from(el.attributes || []).forEach(attr => attrs[attr.name] = attr.value);
+
+      let titleFromRenderer = "";
+      if (!el.getAttribute("title") && (!el.innerText || el.innerText.trim().length < 5)) {
+        const renderer = el.closest("ytd-rich-item-renderer, ytd-video-renderer, ytd-grid-video-renderer, article");
+        if (renderer) {
+          titleFromRenderer = renderer.querySelector("#video-title, [id*='title'], h3")?.getAttribute("title") ||
+                              renderer.querySelector("#video-title, [id*='title'], h3")?.innerText || "";
+        }
+      }
+
+      // Extract best human-readable label
+      const labelText = (
+        el.getAttribute("title") ||
+        titleFromRenderer ||
+        el.querySelector("#video-title, [id*='title'], h1, h2, h3, h4")?.innerText ||
+        el.getAttribute("aria-label") ||
+        el.getAttribute("placeholder") ||
+        el.innerText ||
+        el.value ||
+        (el.labels && el.labels[0] ? el.labels[0].innerText : "") ||
+        ""
+      ).trim();
 
       results.push({
         id: el.id || `live_el_${index + 1}`,
@@ -497,7 +527,7 @@ class UIGroundingEngine {
           Math.round(rect.width),
           Math.round(rect.height)
         ],
-        text: (el.innerText || el.placeholder || el.value || "").trim(),
+        text: labelText.replace(/\s+/g, " ").slice(0, 120),
         attributes: attrs,
         sensitive: false,
         groundingSource: 'dom_query_fallback'
@@ -507,11 +537,17 @@ class UIGroundingEngine {
 
   _isInteractiveElement(tagName, attributes = {}) {
     if (['BUTTON', 'INPUT', 'SELECT', 'TEXTAREA', 'A'].includes(tagName)) return true;
-    if (attributes.role && ['button', 'link', 'checkbox', 'radio', 'textbox'].includes(attributes.role.toLowerCase())) return true;
+    if (attributes.role && ['button', 'link', 'checkbox', 'radio', 'textbox', 'option', 'tab', 'switch', 'combobox'].includes(attributes.role.toLowerCase())) return true;
     return false;
   }
 
   _determineElementType(tagName, attributes = {}) {
+    if (attributes.role) {
+      const role = attributes.role.toLowerCase();
+      if (['button', 'link', 'checkbox', 'radio', 'textbox', 'option', 'tab', 'switch', 'combobox'].includes(role)) {
+        return role;
+      }
+    }
     if (tagName === 'INPUT') {
       const type = (attributes.type || 'text').toLowerCase();
       if (['button', 'submit', 'reset'].includes(type)) return 'button';

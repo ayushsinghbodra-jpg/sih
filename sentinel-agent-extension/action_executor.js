@@ -91,6 +91,26 @@ window.executeAction = async function(actionPayload) {
 
   try {
     switch (action) {
+      case "navigate": {
+        let destUrl = typeof value === "string" ? value.trim() : "";
+        if (!destUrl) {
+          console.warn("[SentinelAgent ActionExecutor] Navigate action received without valid destination URL.");
+          return false;
+        }
+        if (!destUrl.startsWith("http://") && !destUrl.startsWith("https://")) {
+          destUrl = "https://" + destUrl;
+        }
+        console.log(`[SentinelAgent ActionExecutor] Navigating active tab to: ${destUrl}`);
+        if (typeof chrome !== "undefined" && chrome.runtime?.sendMessage) {
+          chrome.runtime.sendMessage({ type: "NAVIGATE_TAB", url: destUrl }).catch(err => {
+            console.warn("[SentinelAgent ActionExecutor] Navigate message error:", err);
+          });
+        } else {
+          window.location.href = destUrl;
+        }
+        return true;
+      }
+
       case "click": {
         const node = elementRegistry.get(target_id);
         if (!node) {
@@ -99,17 +119,48 @@ window.executeAction = async function(actionPayload) {
         }
 
         if (!node.isConnected) {
-          console.warn(`[SentinelAgent ActionExecutor] Stale reference detected: Click target "${target_id}" is no longer connected to the DOM (page re-rendered or mutated). Aborting action.`);
+          console.warn(`[SentinelAgent ActionExecutor] Stale reference detected: Click target "${target_id}" is no longer connected to the DOM. Aborting action.`);
           return false;
         }
 
         node.scrollIntoView({ behavior: "smooth", block: "center" });
-        node.focus();
+        if (typeof node.focus === "function") node.focus();
+
+        // 1. Pointer & Mouse Event simulation for rich web apps (Google Forms, React, Angular)
+        const eventOpts = { bubbles: true, cancelable: true, view: window, composed: true };
+        
+        if (typeof PointerEvent !== "undefined") {
+          node.dispatchEvent(new PointerEvent("pointerdown", eventOpts));
+        }
+        node.dispatchEvent(new MouseEvent("mousedown", eventOpts));
+        if (typeof PointerEvent !== "undefined") {
+          node.dispatchEvent(new PointerEvent("pointerup", eventOpts));
+        }
+        node.dispatchEvent(new MouseEvent("mouseup", eventOpts));
         node.click();
 
-        // Dispatch simulated MouseEvents for custom click handlers
-        node.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, view: window }));
-        node.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, view: window }));
+        // 2. Specialized handling for custom ARIA Radio / Checkbox controls (Google Forms, Material UI)
+        const role = node.getAttribute("role");
+        if (role === "radio" || role === "checkbox") {
+          const isRadio = role === "radio";
+          const currentChecked = node.getAttribute("aria-checked") === "true";
+          node.setAttribute("aria-checked", isRadio ? "true" : String(!currentChecked));
+          node.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+
+        // 3. YouTube / Rich Media Feed Link Trigger:
+        // If element is a video title or nested thumbnail element, ensure the parent <a> tag fires
+        const parentAnchor = node.closest("a");
+        if (parentAnchor && parentAnchor !== node) {
+          parentAnchor.dispatchEvent(new MouseEvent("click", eventOpts));
+        }
+
+        // Check if there's an inner native input or nearby radio/checkbox
+        const nestedInput = node.querySelector("input[type='radio'], input[type='checkbox']");
+        if (nestedInput && !nestedInput.disabled) {
+          nestedInput.checked = nestedInput.type === "radio" ? true : !nestedInput.checked;
+          nestedInput.dispatchEvent(new Event("change", { bubbles: true }));
+        }
 
         console.log(`[SentinelAgent ActionExecutor] Successfully clicked element "${target_id}".`);
         return true;
@@ -123,22 +174,28 @@ window.executeAction = async function(actionPayload) {
         }
 
         if (!node.isConnected) {
-          console.warn(`[SentinelAgent ActionExecutor] Stale reference detected: Type target "${target_id}" is no longer connected to the DOM (page re-rendered or mutated). Aborting action.`);
+          console.warn(`[SentinelAgent ActionExecutor] Stale reference detected: Type target "${target_id}" is no longer connected to the DOM. Aborting action.`);
           return false;
         }
 
         node.scrollIntoView({ behavior: "smooth", block: "center" });
-        node.focus();
+        if (typeof node.focus === "function") node.focus();
 
         const stringValue = value !== null && value !== undefined ? String(value) : "";
-        setNativeValue(node, stringValue);
 
-        // Dispatch comprehensive event sequence for single page apps (React, Vue, etc.)
-        node.dispatchEvent(new Event("keydown", { bubbles: true }));
-        node.dispatchEvent(new Event("keypress", { bubbles: true }));
-        node.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: stringValue }));
-        node.dispatchEvent(new Event("change", { bubbles: true }));
-        node.dispatchEvent(new Event("keyup", { bubbles: true }));
+        // Check if node is contenteditable or standard form input
+        if (node.isContentEditable || node.getAttribute("contenteditable") === "true") {
+          node.innerText = stringValue;
+          node.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: stringValue }));
+        } else {
+          setNativeValue(node, stringValue);
+          // Comprehensive event sequence for single page apps (React, Vue, etc.)
+          node.dispatchEvent(new Event("keydown", { bubbles: true }));
+          node.dispatchEvent(new Event("keypress", { bubbles: true }));
+          node.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: stringValue }));
+          node.dispatchEvent(new Event("change", { bubbles: true }));
+          node.dispatchEvent(new Event("keyup", { bubbles: true }));
+        }
 
         console.log(`[SentinelAgent ActionExecutor] Successfully typed into element "${target_id}".`);
         return true;
@@ -156,7 +213,6 @@ window.executeAction = async function(actionPayload) {
         return true;
       }
 
-      // NOT part of the agreed contract with Person C (click/type/scroll/none only) — kept only if C's server is confirmed to emit these; verify with C before relying on this branch, otherwise remove it.
       case "idle":
       case "wait": {
         console.log(`[SentinelAgent ActionExecutor] Action is ${action}. No DOM operation needed.`);

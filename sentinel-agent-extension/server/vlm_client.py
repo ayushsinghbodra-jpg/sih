@@ -17,26 +17,26 @@ logger = logging.getLogger("sentinel.vlm")
 _current_key_index = 0
 
 CANDIDATE_MODELS = [
+    "gemini-flash-lite-latest",
+    "gemini-3.5-flash-lite",
+    "gemini-3.5-flash",
     "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
-    "gemini-1.5-pro",
-    "gemini-2.5-pro",
-    "gemini-flash-latest",
-    "gemini-pro-latest"
+    "gemini-flash-latest"
 ]
 
 
 def get_api_keys() -> list:
     keys_str = os.getenv("GEMINI_API_KEYS") or ""
-    keys = [k.strip() for k in keys_str.split(",") if k.strip()]
+    raw_keys = [k.strip() for k in keys_str.split(",") if k.strip()]
     single_key = os.getenv("GEMINI_API_KEY") or os.getenv("VLM_API_KEY")
-    if single_key and single_key not in keys:
-        keys.insert(0, single_key.strip())
-    return keys
+    if single_key and single_key not in raw_keys:
+        raw_keys.insert(0, single_key.strip())
+    # Filter to only valid Gemini API keys
+    valid_keys = [k for k in raw_keys if k.startswith("AIzaSy")]
+    return valid_keys if valid_keys else raw_keys
 
 
-def call_vlm(system_prompt: str, task_goal: str, elements: list, screenshot_base64: str) -> str:
+def call_vlm(system_prompt: str, task_goal: str, elements: list, screenshot_base64: str, step_history: list = None) -> str:
     """
     Calls the Gemini vision-language model with multi-key rotation and multi-model fallback.
     Automatically switches API keys and model tiers when quotas or rate limits are reached.
@@ -58,9 +58,24 @@ def call_vlm(system_prompt: str, task_goal: str, elements: list, screenshot_base
 
         image_bytes = base64.b64decode(cleaned_b64)
 
+        history_block = ""
+        if step_history and len(step_history) > 0:
+            history_lines = []
+            for i, step in enumerate(step_history):
+                if isinstance(step, dict):
+                    act = step.get("action", "")
+                    tid = step.get("target_id")
+                    val = step.get("value")
+                    th = step.get("thought", "")
+                    history_lines.append(f"- Step {i+1}: Action={act}" + (f", Target={tid}" if tid else "") + (f", Value={val}" if val else "") + (f" -> Note: {th}" if th else ""))
+                else:
+                    history_lines.append(f"- Step {i+1}: {str(step)}")
+            history_block = "Previous Steps Completed in this Session:\n" + "\n".join(history_lines) + "\n\n"
+
         user_content = (
             f"Task Goal: {task_goal}\n\n"
-            f"Interactable Elements:\n{json.dumps(elements, indent=2)}\n\n"
+            f"{history_block}"
+            f"Interactable Elements on Page:\n{json.dumps(elements, indent=2)}\n\n"
             "Process the task goal against the screenshot and interactable elements according to your instructions, and respond with JSON only."
         )
 
@@ -95,7 +110,7 @@ def call_vlm(system_prompt: str, task_goal: str, elements: list, screenshot_base
                     )
                     response = model.generate_content(
                         [image_part, user_content],
-                        request_options={"timeout": 6.5}
+                        request_options={"timeout": 12.0}
                     )
                     if response and response.text:
                         _current_key_index = idx  # Remember active working key
@@ -104,11 +119,10 @@ def call_vlm(system_prompt: str, task_goal: str, elements: list, screenshot_base
                     last_error = e
                     err_msg = str(e).lower()
                     if "quota" in err_msg or "resourceexhausted" in err_msg or "429" in err_msg or "limit" in err_msg:
-                        logger.warning(f"[VLM] Key {masked_key} quota/rate limit exhausted on {model_name}. Rotating to next API key/model...")
-                        break  # Break model loop to switch key immediately
+                        logger.warning(f"[VLM] Model {model_name} quota exhausted on {masked_key}. Trying next candidate model/key...")
                     else:
-                        logger.warning(f"[VLM] Model {model_name} failed with {masked_key}: {e}. Trying next candidate model...")
-                        continue
+                        logger.warning(f"[VLM] Model {model_name} error with {masked_key}: {e}. Trying next candidate model...")
+                    continue
 
         if last_error:
             raise last_error
