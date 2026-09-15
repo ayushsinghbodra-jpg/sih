@@ -289,7 +289,7 @@ async function runPipeline(taskGoal) {
       serverElements = elements.map(el => ({
         id: el.id,
         type: el.type,
-        label: el.sensitive ? `[REDACTED:${(el.pii_type || "PII").toUpperCase()}]` : (el.type || "button")
+        label: el.sensitive ? `[REDACTED:${(el.pii_type || "SENSITIVE").toUpperCase()}]` : (el.type || "button")
       }));
     }
     const tRedact = Math.round(performance.now() - tRedactStart);

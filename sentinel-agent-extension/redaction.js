@@ -95,7 +95,7 @@ window.redactLabels = function(elements, domRegistry) {
     let label = "";
 
     if (el.sensitive === true) {
-      const piiTag = (el.pii_type || "PII").toUpperCase();
+      const piiTag = (el.pii_type || "SENSITIVE").toUpperCase();
       label = `[REDACTED:${piiTag}]`;
     } else {
       const domNode = domRegistry?.get?.(el.id);

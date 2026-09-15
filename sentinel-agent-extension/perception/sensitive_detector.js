@@ -23,17 +23,13 @@ class SensitiveDetector {
       { type: 'pan', regex: /\b[A-Z]{5}[0-9]{4}[A-Z]{1}\b/g },
       { type: 'credit_card', regex: /\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|3(?:0[0-5]|[68][0-9])[0-9]{11}|6(?:011|5[0-9]{2})[0-9]{12}|(?:2131|1800|35\d{3})\d{11})\b/g },
       { type: 'ssn', regex: /\b\d{3}-\d{2}-\d{4}\b/g },
-      { type: 'cvv', regex: /(?:^|\b)(?:cvv|cvc|cvv2|security code)?\s*[:#-]?\s*\b\d{3,4}\b(?!\.\d)/gi },
-      { type: 'password', regex: /(?:password|passcode|passphrase|pwd|secret|auth[_\-\s]?token|api[_\-\s]?key)\s*[:=\-]?\s*\S+/gi },
+      { type: 'cvv', regex: /(?:^|\b)(?:cvv|cvc|cvv2|security\s*code)\s*[:#-]?\s*\b\d{3,4}\b(?!\.\d)/gi },
+      { type: 'password', regex: /(?:password|passcode|passphrase|pwd|secret|api[_\-\s]?key)\s*[:=]\s*\S+/gi },
       { type: 'otp', regex: /\b(?:otp|one[\-\s]?time[\-\s]?password|verification[\-\s]?code)\s*[:=\-]?\s*\d{4,8}\b/gi },
       { type: 'pin', regex: /\b(?:mpin|atm[\-\s]?pin|security[\-\s]?pin)\s*[:=\-]?\s*\d{4,6}\b/gi }
     ];
 
-    this.sensitiveKeywords = [
-      'password', 'pwd', 'pass', 'passcode', 'secret', 'token', 'auth', 'api_key', 'apikey',
-      'ssn', 'aadhaar', 'adhar', 'pan', 'pancard', 'credit', 'card', 'cvv', 'csc',
-      'pin', 'dob', 'birth', 'bank', 'account', 'routing', 'salary', 'phone', 'mobile'
-    ];
+    this.strictInputRegex = /\b(password|passcode|secret|api[_\-\s]?key|auth[_\-\s]?token|ssn|aadhaar|adhar|pan|cvv|csc|routing|mpin)\b/i;
   }
 
   /**
@@ -51,6 +47,26 @@ class SensitiveDetector {
   }
 
   /**
+   * Helper to check if an element is an interactive action button or navigational link
+   */
+  isActionButtonOrLink(element) {
+    if (!element) return false;
+    const tag = (element.tagName || element.tag || '').toUpperCase();
+    const type = (element.type || element.attributes?.type || '').toLowerCase();
+    const role = (element.attributes?.role || element.role || type || '').toLowerCase();
+    return (
+      tag === 'BUTTON' ||
+      tag === 'A' ||
+      role === 'button' ||
+      role === 'link' ||
+      type === 'button' ||
+      type === 'submit' ||
+      type === 'reset' ||
+      type === 'link'
+    );
+  }
+
+  /**
    * Evaluates an element for sensitivity based on DOM attributes and text content.
    * @param {Object} element - Element from UIGroundingEngine
    * @returns {Object} { sensitive: boolean, pii_type: string|null, confidence: number }
@@ -58,10 +74,15 @@ class SensitiveDetector {
   evaluateElement(element) {
     if (!element) return { sensitive: false, pii_type: null, confidence: 1.0 };
 
-    // Layer 1: DOM Heuristics
-    const domResult = this.checkDOMHeuristics(element);
-    if (domResult.sensitive) {
-      return domResult;
+    const isAction = this.isActionButtonOrLink(element);
+
+    // For action buttons/links: DO NOT apply keyword DOM heuristics (e.g. "Next", "Forgot password?", "Show password")
+    if (!isAction) {
+      // Layer 1: DOM Heuristics for Input Fields
+      const domResult = this.checkDOMHeuristics(element);
+      if (domResult.sensitive) {
+        return domResult;
+      }
     }
 
     // Layer 2: PII Text Patterns (checks text, value, and label)
@@ -73,6 +94,24 @@ class SensitiveDetector {
       element.attributes?.value || "",
       element.attributes?.placeholder || ""
     ].join(" ");
+
+    // Skip UI text labels like "Forgot password?", "Show password", "Help", "Privacy" for action buttons
+    if (isAction) {
+      const buttonText = (element.text || element.innerText || element.label || "").trim().toLowerCase();
+      if (
+        buttonText.includes("password") ||
+        buttonText.includes("help") ||
+        buttonText.includes("privacy") ||
+        buttonText.includes("terms") ||
+        buttonText.includes("next") ||
+        buttonText.includes("submit") ||
+        buttonText.includes("sign in") ||
+        buttonText.includes("log in")
+      ) {
+        // High confidence UI control, not PII
+        return { sensitive: false, pii_type: null, confidence: 1.0 };
+      }
+    }
 
     const textResult = this.checkPIIPatterns(combinedContent);
     if (textResult.sensitive) {
@@ -87,15 +126,13 @@ class SensitiveDetector {
    */
   checkDOMHeuristics(element) {
     const attrs = element.attributes || {};
-    const inputType = (attrs.type || '').toLowerCase();
+    const inputType = (attrs.type || element.type || '').toLowerCase();
     const autocomplete = (attrs.autocomplete || '').toLowerCase();
     const name = (attrs.name || '').toLowerCase();
     const jsname = (attrs.jsname || '').toLowerCase();
-    const id = (element.id || '').toLowerCase();
+    const id = (element.id || attrs.id || '').toLowerCase();
     const placeholder = (attrs.placeholder || '').toLowerCase();
     const ariaLabel = (attrs['aria-label'] || '').toLowerCase();
-    const label = (element.label || '').toLowerCase();
-    const text = (element.text || '').toLowerCase();
 
     // 1a. Explicit Password type
     if (inputType === 'password') {
@@ -114,12 +151,12 @@ class SensitiveDetector {
       return { sensitive: true, pii_type: piiType, confidence: 0.95, source: 'dom_autocomplete' };
     }
 
-    // 1c. Name / ID / Placeholder / JSName / Label / ARIA keyword matching
-    const combinedString = `${id} ${name} ${jsname} ${placeholder} ${ariaLabel} ${label} ${text}`;
-    for (const kw of this.sensitiveKeywords) {
-      if (combinedString.includes(kw)) {
-        return { sensitive: true, pii_type: kw, confidence: 0.95, source: 'dom_keyword' };
-      }
+    // 1c. Name / ID / Placeholder / ARIA keyword matching with strict word boundary
+    const combinedString = `${id} ${name} ${jsname} ${placeholder} ${ariaLabel}`;
+    if (this.strictInputRegex && this.strictInputRegex.test(combinedString)) {
+      const match = combinedString.match(this.strictInputRegex);
+      const matchedKey = match ? match[0].toLowerCase() : 'sensitive';
+      return { sensitive: true, pii_type: matchedKey, confidence: 0.95, source: 'dom_keyword' };
     }
 
     return { sensitive: false, pii_type: null, confidence: 1.0 };

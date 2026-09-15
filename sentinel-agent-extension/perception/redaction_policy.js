@@ -26,11 +26,16 @@ class RedactionPolicy {
     const processedElements = elements.map(el => {
       const copy = { ...el };
 
+      const tag = (copy.tagName || copy.tag || '').toUpperCase();
+      const type = (copy.type || '').toLowerCase();
+      const role = (copy.attributes?.role || copy.role || type || '').toLowerCase();
+      const isAction = tag === 'BUTTON' || tag === 'A' || role === 'button' || role === 'link' || type === 'button' || type === 'submit' || type === 'reset';
+
       // Confidence-based decision logic
       // Rule 1: Explicit sensitive flag set by detector
-      // Rule 2: Low detection confidence (< 0.6) in safety-biased mode forces redaction
+      // Rule 2: Low detection confidence (< 0.6) in safety-biased mode forces redaction ONLY for data inputs/text, NOT action buttons
       const isLowConfidence = copy.confidence !== undefined && copy.confidence < this.confidenceThreshold;
-      const shouldRedact = copy.sensitive || (this.safetyBiased && isLowConfidence);
+      const shouldRedact = copy.sensitive || (!isAction && this.safetyBiased && isLowConfidence);
 
       if (shouldRedact) {
         copy.sensitive = true;
