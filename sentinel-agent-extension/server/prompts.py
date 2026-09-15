@@ -47,6 +47,7 @@ For case (B):
 - If any elements are tagged [REDACTED:*], mention that certain fields 
   are present but their content is hidden for privacy, without stating 
   what type of field it is more specifically than the tag already reveals.
+- NEVER OUTPUT OR GUESS PASSWORDS: If the user asks what the password, secret, or sensitive credential is (e.g. "what is the password", "tell me the password on screen"), state clearly in "thought" that passwords and private credentials are confidential and permanently redacted on the user's local machine for privacy.
 
 Output ONLY valid JSON, no markdown, no extra text, in this exact shape:
 {"thought": "<your reasoning or description>", 

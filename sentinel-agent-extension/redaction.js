@@ -38,13 +38,18 @@ window.redactPixels = function(screenshotBase64, elements) {
         // Draw original screenshot
         ctx.drawImage(img, 0, 0, width, height);
 
-        // Draw black filled rectangles over all sensitive bounding boxes
+        // Draw solid black filled rectangles over all sensitive bounding boxes (with 4px safety padding)
         ctx.fillStyle = "#000000";
         if (Array.isArray(elements)) {
           for (const el of elements) {
             if (el && el.sensitive === true && Array.isArray(el.bbox) && el.bbox.length === 4) {
               const [x, y, w, h] = el.bbox;
-              ctx.fillRect(x, y, w, h);
+              const pad = 4;
+              const rx = Math.max(0, x - pad);
+              const ry = Math.max(0, y - pad);
+              const rw = Math.min(width - rx, w + (pad * 2));
+              const rh = Math.min(height - ry, h + (pad * 2));
+              ctx.fillRect(rx, ry, rw, rh);
             }
           }
         }
@@ -73,6 +78,7 @@ window.redactPixels = function(screenshotBase64, elements) {
 /**
  * Sanitizes element labels and enforces the exact server contract: { id, type, label }.
  * Strips bbox, sensitive, and pii_type properties.
+ * GUARANTEE: Never transmits user-typed private input values as labels.
  *
  * @param {Array<Object>} elements - Array of detected elements ({id, type, bbox, sensitive, pii_type})
  * @param {Map<string, Element>} [domRegistry] - Optional map of element id -> DOM node
@@ -94,7 +100,7 @@ window.redactLabels = function(elements, domRegistry) {
     } else {
       const domNode = domRegistry?.get?.(el.id);
       
-      // 1. Resolve aria-labelledby (Google Forms question title resolution)
+      // 1. Resolve aria-labelledby (Google Forms / Google Sign-In question title resolution)
       let ariaLabelledByText = "";
       const ariaLabelledBy = domNode?.getAttribute?.("aria-labelledby");
       if (ariaLabelledBy) {
@@ -105,15 +111,14 @@ window.redactLabels = function(elements, domRegistry) {
         }
       }
 
-      // 2. Multi-layer title & label resolution
+      // 2. Multi-layer title & label resolution (STRUCTURAL PROMPTS ONLY — NEVER TYPED VALUES)
       const titleAttr = domNode?.getAttribute?.("title")?.trim();
       const ariaLabel = domNode?.getAttribute?.("aria-label")?.trim();
       const dataValue = domNode?.getAttribute?.("data-value")?.trim();
       const nestedTitle = domNode?.querySelector?.("#video-title, [id*='title'], h1, h2, h3, h4, .yt-core-attributed-string")?.innerText?.trim();
-      const innerText = domNode?.innerText?.trim();
+      const innerText = (domNode?.tagName === "INPUT" || domNode?.tagName === "TEXTAREA") ? "" : domNode?.innerText?.trim();
       const placeholder = domNode?.getAttribute?.("placeholder")?.trim();
-      const val = (domNode?.tagName === "INPUT" || domNode?.tagName === "TEXTAREA") ? domNode?.value?.trim() : "";
-      const preText = el.text || el.label || el.innerText || "";
+      const preText = (el.text || el.label || "").trim();
 
       // 3. Question container title for form inputs & radio options
       let questionTitle = "";
@@ -152,12 +157,13 @@ window.redactLabels = function(elements, domRegistry) {
         forLabel = document.querySelector(`label[for="${domNode.id}"]`)?.innerText?.trim() || "";
       }
 
-      const resolved = ariaLabelledByText || questionTitle || forLabel || titleAttr || rendererTitle || nestedTitle || ariaLabel || innerText || placeholder || val || preText;
+      // NEVER include user-typed password/credential input values as labels
+      const resolved = ariaLabelledByText || questionTitle || forLabel || titleAttr || rendererTitle || nestedTitle || ariaLabel || placeholder || innerText || preText;
 
       if (resolved) {
         label = resolved.replace(/\s+/g, " ").slice(0, 120);
       } else {
-        label = el.type || "button";
+        label = el.type || "input";
       }
     }
 

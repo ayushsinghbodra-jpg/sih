@@ -528,6 +528,7 @@ class UIGroundingEngine {
           Math.round(rect.height)
         ],
         text: labelText.replace(/\s+/g, " ").slice(0, 120),
+        value: (el.value || el.innerText || ""),
         attributes: attrs,
         sensitive: false,
         groundingSource: 'dom_query_fallback'

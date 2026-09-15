@@ -146,11 +146,12 @@ function getFlattenedDOM() {
     "[role='radio']", "[role='switch']", "[role='tab']", "[role='option']",
     "[role='combobox']", "[role='listbox']", "[role='menuitem']",
     "[contenteditable='true']", "[tabindex]:not([tabindex='-1'])",
+    ".VfPpkd-LgbsSe", "[jsname='LgbsSe']", "[jsaction*='click']",
     "ytd-rich-item-renderer a", "ytd-video-renderer a", "ytd-grid-video-renderer a",
     "#video-title", "a#video-title-link", "a#thumbnail"
   ].join(", ");
 
-  const nodes = Array.from(document.body.querySelectorAll(interactiveSelector));
+  const nodes = Array.from(document.querySelectorAll(interactiveSelector));
   const flattened = [];
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 1920;
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 1080;
@@ -160,7 +161,7 @@ function getFlattenedDOM() {
 
     const rect = el.getBoundingClientRect();
     const style = window.getComputedStyle(el);
-    const isVisible = rect.width > 4 && rect.height > 4 &&
+    const isVisible = rect.width > 2 && rect.height > 2 &&
       style.visibility !== "hidden" &&
       style.display !== "none" &&
       style.opacity !== "0";
@@ -171,19 +172,31 @@ function getFlattenedDOM() {
     if (isVisible && inViewport) {
       const rawLabel = extractRichElementLabel(el);
       const labelText = rawLabel || el.getAttribute("role") || el.getAttribute("type") || el.tagName.toLowerCase();
+      const liveVal = (el.tagName === "INPUT" || el.tagName === "TEXTAREA") ? (el.value || "") : (el.innerText || "");
+
+      const isPrimaryControl = ["BUTTON", "INPUT", "TEXTAREA", "SELECT"].includes(el.tagName) ||
+                               el.getAttribute("role") === "button" ||
+                               el.classList.contains("VfPpkd-LgbsSe") ||
+                               ["radio", "checkbox"].includes(el.getAttribute("role"));
 
       flattened.push({
         id: el.id || `node_${index}`,
         tag: el.tagName.toLowerCase(),
         type: el.getAttribute("role") || el.getAttribute("type") || el.tagName.toLowerCase(),
         bbox: [Math.round(rect.x), Math.round(rect.y), Math.round(rect.width), Math.round(rect.height)],
-        innerText: labelText.slice(0, 120)
+        text: labelText.slice(0, 120),
+        value: liveVal,
+        innerText: labelText.slice(0, 120),
+        _isPrimary: isPrimaryControl
       });
     }
   });
 
-  // Limit to top 50 visible interactive elements
-  return flattened.slice(0, 50);
+  // Prioritize primary action buttons & form inputs ahead of auxiliary links
+  flattened.sort((a, b) => (b._isPrimary ? 1 : 0) - (a._isPrimary ? 1 : 0));
+
+  // Limit to top 50 visible interactive elements (primary controls guaranteed to be included)
+  return flattened.slice(0, 50).map(({ _isPrimary, ...rest }) => rest);
 }
 
 /**
@@ -256,6 +269,15 @@ async function runPipeline(taskGoal) {
     } else {
       console.warn("[SentinelAgent Pipeline] window.redactPixels is not defined; using raw base64.");
       cleanScreenshot = screenshot ? screenshot.replace(/^data:image\/\w+;base64,/, "") : "";
+    }
+
+    // Broadcast redacted image preview dataUrl for live visual verification in popup
+    if (cleanScreenshot) {
+      chrome.runtime.sendMessage({
+        type: "REDACTED_IMAGE_PREVIEW",
+        dataUrl: `data:image/jpeg;base64,${cleanScreenshot}`,
+        sensitiveCount: elements.filter(e => e.sensitive).length
+      }).catch(() => {});
     }
 
     // h. Redact labels and format strictly to { id, type, label } schema

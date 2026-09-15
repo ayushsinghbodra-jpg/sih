@@ -279,6 +279,43 @@
     }
   }
 
+  // Render Visual Redacted Image Thumbnail & Modal (Zero-Leakage Proof)
+  function renderRedactedImagePreview(dataUrl, sensitiveCount = 0) {
+    if (!dataUrl) return;
+
+    // Remove existing preview cards to avoid clutter
+    const oldCards = document.querySelectorAll(".redacted-preview-card");
+    oldCards.forEach(c => c.remove());
+
+    const previewContainer = document.createElement("div");
+    previewContainer.className = "redacted-preview-card";
+
+    const badgeLabel = sensitiveCount > 0 ? `🛡️ ${sensitiveCount} Sensitive Fields Redacted` : "🛡️ Sanitized Screen (Zero PII)";
+    previewContainer.innerHTML = `
+      <div class="redacted-preview-header">
+        <span class="redacted-preview-badge">${badgeLabel}</span>
+        <button type="button" class="redacted-preview-btn" title="Toggle visual proof">👁️ View Proof</button>
+      </div>
+      <div class="redacted-preview-body" style="display: none;">
+        <img src="${dataUrl}" class="redacted-preview-img" alt="Redacted screenshot proof" />
+        <span class="redacted-preview-caption">Solid #000000 pixel masks applied locally before network transmission.</span>
+      </div>
+    `;
+
+    const toggleBtn = previewContainer.querySelector(".redacted-preview-btn");
+    const bodyEl = previewContainer.querySelector(".redacted-preview-body");
+
+    toggleBtn.addEventListener("click", () => {
+      const isHidden = bodyEl.style.display === "none";
+      bodyEl.style.display = isHidden ? "flex" : "none";
+      toggleBtn.textContent = isHidden ? "✕ Hide Proof" : "👁️ View Proof";
+      logEl.scrollTop = logEl.scrollHeight;
+    });
+
+    logEl.appendChild(previewContainer);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
   // Render Error Message (LEFT-ALIGNED)
   function renderErrorMessage(text, persist = true) {
     const emptyEl = document.getElementById("logEmpty");
@@ -316,6 +353,12 @@
       if (valTotal) valTotal.textContent = `${(t.total / 1000).toFixed(2)} s`;
       if (valMemory) valMemory.textContent = t.memory || "~14.2 MB";
       if (valElements) valElements.textContent = `${t.elementsCount} (${t.redactedCount} PII)`;
+      return;
+    }
+
+    // Handle Visual Redacted Image Preview (Live Proof of Zero-Leakage)
+    if (msg.type === "REDACTED_IMAGE_PREVIEW" && msg.dataUrl) {
+      renderRedactedImagePreview(msg.dataUrl, msg.sensitiveCount || 0);
       return;
     }
 

@@ -23,11 +23,14 @@ class SensitiveDetector {
       { type: 'pan', regex: /\b[A-Z]{5}[0-9]{4}[A-Z]{1}\b/g },
       { type: 'credit_card', regex: /\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|3(?:0[0-5]|[68][0-9])[0-9]{11}|6(?:011|5[0-9]{2})[0-9]{12}|(?:2131|1800|35\d{3})\d{11})\b/g },
       { type: 'ssn', regex: /\b\d{3}-\d{2}-\d{4}\b/g },
-      { type: 'cvv', regex: /(?:^|\b)(?:cvv|cvc|cvv2|security code)?\s*[:#-]?\s*\b\d{3,4}\b(?!\.\d)/gi }
+      { type: 'cvv', regex: /(?:^|\b)(?:cvv|cvc|cvv2|security code)?\s*[:#-]?\s*\b\d{3,4}\b(?!\.\d)/gi },
+      { type: 'password', regex: /(?:password|passcode|passphrase|pwd|secret|auth[_\-\s]?token|api[_\-\s]?key)\s*[:=\-]?\s*\S+/gi },
+      { type: 'otp', regex: /\b(?:otp|one[\-\s]?time[\-\s]?password|verification[\-\s]?code)\s*[:=\-]?\s*\d{4,8}\b/gi },
+      { type: 'pin', regex: /\b(?:mpin|atm[\-\s]?pin|security[\-\s]?pin)\s*[:=\-]?\s*\d{4,6}\b/gi }
     ];
 
     this.sensitiveKeywords = [
-      'password', 'pwd', 'pass', 'secret', 'token', 'auth', 'api_key', 'apikey',
+      'password', 'pwd', 'pass', 'passcode', 'secret', 'token', 'auth', 'api_key', 'apikey',
       'ssn', 'aadhaar', 'adhar', 'pan', 'pancard', 'credit', 'card', 'cvv', 'csc',
       'pin', 'dob', 'birth', 'bank', 'account', 'routing', 'salary', 'phone', 'mobile'
     ];
@@ -53,14 +56,25 @@ class SensitiveDetector {
    * @returns {Object} { sensitive: boolean, pii_type: string|null, confidence: number }
    */
   evaluateElement(element) {
+    if (!element) return { sensitive: false, pii_type: null, confidence: 1.0 };
+
     // Layer 1: DOM Heuristics
     const domResult = this.checkDOMHeuristics(element);
     if (domResult.sensitive) {
       return domResult;
     }
 
-    // Layer 2: PII Text Patterns
-    const textResult = this.checkPIIPatterns(element.text || "");
+    // Layer 2: PII Text Patterns (checks text, value, and label)
+    const combinedContent = [
+      element.text || "",
+      element.value || "",
+      element.innerText || "",
+      element.label || "",
+      element.attributes?.value || "",
+      element.attributes?.placeholder || ""
+    ].join(" ");
+
+    const textResult = this.checkPIIPatterns(combinedContent);
     if (textResult.sensitive) {
       return textResult;
     }
@@ -76,30 +90,35 @@ class SensitiveDetector {
     const inputType = (attrs.type || '').toLowerCase();
     const autocomplete = (attrs.autocomplete || '').toLowerCase();
     const name = (attrs.name || '').toLowerCase();
+    const jsname = (attrs.jsname || '').toLowerCase();
     const id = (element.id || '').toLowerCase();
     const placeholder = (attrs.placeholder || '').toLowerCase();
     const ariaLabel = (attrs['aria-label'] || '').toLowerCase();
+    const label = (element.label || '').toLowerCase();
+    const text = (element.text || '').toLowerCase();
 
     // 1a. Explicit Password type
     if (inputType === 'password') {
       return { sensitive: true, pii_type: 'password', confidence: 1.0, source: 'dom_heuristic' };
     }
 
-    // 1b. Autocomplete flags
-    if (autocomplete.includes('cc-') || autocomplete.includes('email') || autocomplete.includes('tel') || autocomplete.includes('password')) {
+    // 1b. Autocomplete flags (current-password, new-password, cc-*, etc.)
+    if (autocomplete.includes('password') || autocomplete.includes('current-password') || autocomplete.includes('new-password')) {
+      return { sensitive: true, pii_type: 'password', confidence: 1.0, source: 'dom_autocomplete' };
+    }
+    if (autocomplete.includes('cc-') || autocomplete.includes('email') || autocomplete.includes('tel')) {
       let piiType = 'sensitive_field';
       if (autocomplete.includes('cc-')) piiType = 'credit_card';
       if (autocomplete.includes('email')) piiType = 'email';
       if (autocomplete.includes('tel')) piiType = 'phone';
-      if (autocomplete.includes('password')) piiType = 'password';
       return { sensitive: true, pii_type: piiType, confidence: 0.95, source: 'dom_autocomplete' };
     }
 
-    // 1c. Name / ID / Placeholder keyword matching
-    const combinedString = `${id} ${name} ${placeholder} ${ariaLabel}`;
+    // 1c. Name / ID / Placeholder / JSName / Label / ARIA keyword matching
+    const combinedString = `${id} ${name} ${jsname} ${placeholder} ${ariaLabel} ${label} ${text}`;
     for (const kw of this.sensitiveKeywords) {
       if (combinedString.includes(kw)) {
-        return { sensitive: true, pii_type: kw, confidence: 0.90, source: 'dom_keyword' };
+        return { sensitive: true, pii_type: kw, confidence: 0.95, source: 'dom_keyword' };
       }
     }
 
