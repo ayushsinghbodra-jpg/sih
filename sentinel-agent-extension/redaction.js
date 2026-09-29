@@ -19,12 +19,12 @@ window.redactPixels = function(screenshotBase64, elements) {
     const imageSrc = `data:image/jpeg;base64,${rawBase64}`;
 
     const img = new Image();
-    img.crossOrigin = "anonymous";
+    // Do NOT set crossOrigin on data: URIs to prevent canvas tainting and CSP SecurityError on accounts.google.com
 
     img.onload = () => {
       try {
-        const width = img.naturalWidth || img.width;
-        const height = img.naturalHeight || img.height;
+        const width = img.naturalWidth || img.width || 1920;
+        const height = img.naturalHeight || img.height || 1080;
 
         const canvas = document.createElement("canvas");
         canvas.width = width;
@@ -38,17 +38,29 @@ window.redactPixels = function(screenshotBase64, elements) {
         // Draw original screenshot
         ctx.drawImage(img, 0, 0, width, height);
 
+        // Compute viewport DPI scaling ratio (screenshot physical resolution vs viewport CSS dimensions)
+        const viewportWidth = (typeof window !== "undefined" && (window.innerWidth || document.documentElement?.clientWidth)) || width;
+        const viewportHeight = (typeof window !== "undefined" && (window.innerHeight || document.documentElement?.clientHeight)) || height;
+        const scaleX = width / viewportWidth;
+        const scaleY = height / viewportHeight;
+
+        console.log(`[SentinelAgent Redaction] Image loaded: ${width}x${height} | Viewport: ${viewportWidth}x${viewportHeight} | Scale: (${scaleX.toFixed(2)}, ${scaleY.toFixed(2)})`);
+
         // Draw solid black filled rectangles over all sensitive bounding boxes (with 4px safety padding)
         ctx.fillStyle = "#000000";
         if (Array.isArray(elements)) {
           for (const el of elements) {
             if (el && el.sensitive === true && Array.isArray(el.bbox) && el.bbox.length === 4) {
               const [x, y, w, h] = el.bbox;
+              // Container blackout safeguard: Never blackout giant layout containers or large modal cards spanning significant viewport area
+              if ((w > viewportWidth * 0.6 && h > viewportHeight * 0.4) || (w * h) > (viewportWidth * viewportHeight * 0.35)) {
+                continue;
+              }
               const pad = 4;
-              const rx = Math.max(0, x - pad);
-              const ry = Math.max(0, y - pad);
-              const rw = Math.min(width - rx, w + (pad * 2));
-              const rh = Math.min(height - ry, h + (pad * 2));
+              const rx = Math.max(0, Math.round((x - pad) * scaleX));
+              const ry = Math.max(0, Math.round((y - pad) * scaleY));
+              const rw = Math.min(width - rx, Math.round((w + pad * 2) * scaleX));
+              const rh = Math.min(height - ry, Math.round((h + pad * 2) * scaleY));
               ctx.fillRect(rx, ry, rw, rh);
             }
           }

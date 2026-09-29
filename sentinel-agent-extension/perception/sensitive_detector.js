@@ -113,6 +113,20 @@ class SensitiveDetector {
       }
     }
 
+    // For structural layout containers (e.g. wrapper divs, forms, sections), do not flag the container as a PII block
+    const tag = (element.tagName || element.tag || '').toUpperCase();
+    const role = (element.attributes?.role || element.role || element.type || '').toLowerCase();
+    const isInputRole = ['textbox', 'combobox', 'searchbox'].includes(role) || element.attributes?.contenteditable === 'true';
+    const isContainer = ['DIV', 'SECTION', 'MAIN', 'FORM', 'BODY', 'ARTICLE', 'HEADER', 'FOOTER', 'C-WIZ'].includes(tag);
+
+    if (isContainer && !isInputRole) {
+      // Containers are only sensitive if they are a compact single-line badge/chip (e.g. <= 45px height and <= 320px width)
+      const isCompactBadge = Array.isArray(element.bbox) && element.bbox[3] <= 45 && element.bbox[2] <= 320;
+      if (!isCompactBadge) {
+        return { sensitive: false, pii_type: null, confidence: 1.0 };
+      }
+    }
+
     const textResult = this.checkPIIPatterns(combinedContent);
     if (textResult.sensitive) {
       return textResult;

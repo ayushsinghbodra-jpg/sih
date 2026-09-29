@@ -146,7 +146,7 @@ function getFlattenedDOM() {
     "[role='radio']", "[role='switch']", "[role='tab']", "[role='option']",
     "[role='combobox']", "[role='listbox']", "[role='menuitem']",
     "[contenteditable='true']", "[tabindex]:not([tabindex='-1'])",
-    ".VfPpkd-LgbsSe", "[jsname='LgbsSe']", "[jsaction*='click']",
+    ".VfPpkd-LgbsSe", "[jsname='LgbsSe']",
     "ytd-rich-item-renderer a", "ytd-video-renderer a", "ytd-grid-video-renderer a",
     "#video-title", "a#video-title-link", "a#thumbnail"
   ].join(", ");
@@ -169,6 +169,11 @@ function getFlattenedDOM() {
     const inViewport = rect.top < viewportHeight && rect.bottom > 0 &&
                        rect.left < viewportWidth && rect.right > 0;
 
+    // Ignore full-page container wrappers (e.g. body, #root, view_container, main page wrappers)
+    const isFullPageContainer = rect.width > viewportWidth * 0.85 && rect.height > viewportHeight * 0.85 &&
+                                !["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(el.tagName);
+    if (isFullPageContainer) return;
+
     if (isVisible && inViewport) {
       const rawLabel = extractRichElementLabel(el);
       const labelText = rawLabel || el.getAttribute("role") || el.getAttribute("type") || el.tagName.toLowerCase();
@@ -187,7 +192,16 @@ function getFlattenedDOM() {
         text: labelText.slice(0, 120),
         value: liveVal,
         innerText: labelText.slice(0, 120),
-        _isPrimary: isPrimaryControl
+        _isPrimary: isPrimaryControl,
+        attributes: {
+          type: el.getAttribute("type") || "",
+          name: el.getAttribute("name") || "",
+          placeholder: el.getAttribute("placeholder") || "",
+          autocomplete: el.getAttribute("autocomplete") || "",
+          "aria-label": el.getAttribute("aria-label") || "",
+          jsname: el.getAttribute("jsname") || "",
+          id: el.id || ""
+        }
       });
     }
   });
